@@ -1,0 +1,43 @@
+{
+  "at": "2026-11-08T13:20:59.726Z",
+  "db": "C:\\Users\\Nour Soft\\Documents\\CASR\\data\\cashier.db",
+  "passed": 7,
+  "total": 7,
+  "results": [
+    {
+      "name": "indep G0 total 266.76",
+      "ok": true,
+      "detail": "266.76"
+    },
+    {
+      "name": "indep G0 tax 32.76",
+      "ok": true,
+      "detail": "32.76"
+    },
+    {
+      "name": "indep G0 net 234",
+      "ok": true,
+      "detail": "234"
+    },
+    {
+      "name": "indep exempt mix total 228.2",
+      "ok": true,
+      "detail": "228.2"
+    },
+    {
+      "name": "loaded invoices",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "CONFIRMED invoices match independent math",
+      "ok": true,
+      "detail": "compared=2 mismatches=0"
+    },
+    {
+      "name": "profit uses netOfTax not total",
+      "ok": true,
+      "detail": "profit=210 (tax 25.2 excluded)"
+    }
+  ]
+}

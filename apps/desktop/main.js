@@ -339,7 +339,38 @@ function initDatabase(res) {
     throw new Error(`Database not readable/writable: ${dbFile}\n${e.message}`)
   }
 
-  return 'file:' + dbFile.replace(/\\/g, '/')
+  // Portable extracts under %TEMP%; its node+Prisma often cannot open SQLite under
+  // user profile paths with spaces (code 14) even via junction/8.3. Mirror the live
+  // DB to a space-free ProgramData path for Prisma, keep Documents as canonical copy.
+  let prismaFile = dbFile
+  if (process.platform === 'win32' && /\s/.test(dbFile)) {
+    const mirrorDir = path.join(process.env.ProgramData || 'C:\\ProgramData', 'GalaxyCashier', 'data')
+    const mirrorDb = path.join(mirrorDir, 'cashier.db')
+    try {
+      fs.mkdirSync(mirrorDir, { recursive: true })
+      const srcStat = fs.statSync(dbFile)
+      let needCopy = !fs.existsSync(mirrorDb)
+      if (!needCopy) {
+        const dstStat = fs.statSync(mirrorDb)
+        needCopy = srcStat.mtimeMs > dstStat.mtimeMs || srcStat.size !== dstStat.size
+      }
+      if (needCopy) {
+        fs.copyFileSync(dbFile, mirrorDb)
+        log(`[db] mirrored Documents → ProgramData (${srcStat.size} bytes)`)
+      }
+      prismaFile = mirrorDb
+      log(`[db] Prisma URL uses ProgramData mirror: ${prismaFile}`)
+    } catch (e) {
+      log(`[db] ProgramData mirror failed: ${e.message} — using Documents path`)
+    }
+  }
+  activeDbMirror = prismaFile !== dbFile ? prismaFile : null
+  return {
+    dataDir,
+    dbFile,
+    mirrorFile: activeDbMirror,
+    url: 'file:' + prismaFile.replace(/\\/g, '/'),
+  }
 }
 
 // ─── Server startup ────────────────────────────────────────────────────────────
@@ -403,8 +434,8 @@ async function startServers() {
   const webRunning = await isPortListening(WEB_PORT)
   log(`[app] Port check after cleanup — api=${apiRunning}  web=${webRunning}`)
 
-  const dbUrl = initDatabase(res)
-  log(`[app] DATABASE_URL: ${dbUrl}`)
+  const dbInfo = initDatabase(res)
+  log(`[app] DATABASE_URL: ${dbInfo.url}`)
 
   // Automatic backups: API scheduler (see autoBackup.scheduler.ts)
 
@@ -424,7 +455,7 @@ async function startServers() {
   if (!apiRunning) {
     log(`[app] Spawning API: ${nodeExe} server.js in ${apiDir}`)
     spawnServer(nodeExe, ['server.js'], apiDir, {
-      DATABASE_URL:                dbUrl,
+      DATABASE_URL:                dbInfo.url,
       PRISMA_QUERY_ENGINE_LIBRARY: prismaEngineLib,
       JWT_SECRET:                  finalJwt,
       JWT_REFRESH_SECRET:          finalRefresh,
@@ -632,7 +663,23 @@ function tryCopyExitBackup(dbFile, directory, fileName) {
   }
 }
 
+/** When ProgramData mirror is used (spaces in username), sync it back to Documents on exit. */
+let activeDbMirror = null
+
+function syncMirrorToDocuments() {
+  if (!activeDbMirror || !fs.existsSync(activeDbMirror)) return
+  const docs = path.join(os.homedir(), 'Documents', 'CASR', 'data', 'cashier.db')
+  try {
+    fs.mkdirSync(path.dirname(docs), { recursive: true })
+    fs.copyFileSync(activeDbMirror, docs)
+    log(`[db] synced ProgramData mirror → Documents`)
+  } catch (e) {
+    log(`[db] mirror sync failed: ${e.message}`)
+  }
+}
+
 function performExitBackup() {
+  syncMirrorToDocuments()
   const cfg = readExitBackupConfig()
   if (!cfg.onExit) {
     log('[backup] Exit backup skipped (disabled in settings)')

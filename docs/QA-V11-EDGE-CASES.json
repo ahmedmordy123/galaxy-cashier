@@ -1,0 +1,77 @@
+{
+  "at": "2026-11-08T13:20:54.559Z",
+  "passed": 14,
+  "total": 14,
+  "results": [
+    {
+      "name": "(أ) DRAFT create under INCLUSIVE",
+      "ok": true,
+      "detail": "201"
+    },
+    {
+      "name": "(أ) DRAFT snapshotted INCLUSIVE",
+      "ok": true,
+      "detail": "INCLUSIVE"
+    },
+    {
+      "name": "(أ) DRAFT inclusive total==100",
+      "ok": true,
+      "detail": "100"
+    },
+    {
+      "name": "(أ) settings → EXCLUSIVE while DRAFT open",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "(أ) confirm DRAFT ok after settings change",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "(أ) confirmed keeps INCLUSIVE snapshot (not live EXCLUSIVE)",
+      "ok": true,
+      "detail": "mode=INCLUSIVE total=100"
+    },
+    {
+      "name": "(أ) new DRAFT uses EXCLUSIVE live settings",
+      "ok": true,
+      "detail": "mode=EXCLUSIVE total=114"
+    },
+    {
+      "name": "(ب) mixed exempt+taxable create",
+      "ok": true,
+      "detail": "201"
+    },
+    {
+      "name": "(ب) net after disc 270",
+      "ok": true,
+      "detail": "270"
+    },
+    {
+      "name": "(ب) tax on taxable share only 25.2",
+      "ok": true,
+      "detail": "25.2"
+    },
+    {
+      "name": "(ب) total 295.2",
+      "ok": true,
+      "detail": "295.2"
+    },
+    {
+      "name": "(ب) exempt line flagged",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "(ج) below-cost BLOCK rejects (even with confirm)",
+      "ok": true,
+      "detail": "status=400 code=BELOW_COST_BLOCKED"
+    },
+    {
+      "name": "(ج) price 0 BLOCK rejects",
+      "ok": true,
+      "detail": "status=400 code=BELOW_COST_BLOCKED"
+    }
+  ]
+}

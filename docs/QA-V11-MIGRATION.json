@@ -1,0 +1,112 @@
+{
+  "at": "2026-11-08T13:21:12.050Z",
+  "backup": "C:\\Users\\Nour Soft\\Documents\\CASR\\data\\cashier.db.pre-v1.1-20261108143017",
+  "before": {
+    "users": 2,
+    "items": 5000,
+    "customers": 10,
+    "sales": 20002,
+    "saleItems": 20252,
+    "settings": 23,
+    "hasCanEdit": false,
+    "hasTaxExempt": false,
+    "hasTaxMode": false,
+    "sample": 20
+  },
+  "after": {
+    "users": 2,
+    "items": 5000,
+    "customers": 10,
+    "sales": 20002,
+    "saleItems": 20252,
+    "settings": 26,
+    "hasCanEdit": true,
+    "hasTaxExempt": true,
+    "hasTaxMode": true,
+    "sample": 20
+  },
+  "passed": 16,
+  "total": 16,
+  "results": [
+    {
+      "name": "v1.0 backup found",
+      "ok": true,
+      "detail": "C:\\Users\\Nour Soft\\Documents\\CASR\\data\\cashier.db.pre-v1.1-20261108143017"
+    },
+    {
+      "name": "restored backup as live DB",
+      "ok": true,
+      "detail": "15491072 bytes"
+    },
+    {
+      "name": "pre-migrate: has data",
+      "ok": true,
+      "detail": "{\"users\":2,\"items\":5000,\"sales\":20002}"
+    },
+    {
+      "name": "pre-migrate: likely v1.0 (missing v1.1 cols OR old)",
+      "ok": true,
+      "detail": "canEdit=false taxExempt=false taxMode=false"
+    },
+    {
+      "name": "API healthy after boot on backup DB",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "login after migration",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "post-migrate: User.canEditPrice exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "post-migrate: Item.taxExempt exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "post-migrate: SalesInvoice.taxMode exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no user loss",
+      "ok": true,
+      "detail": "2→2"
+    },
+    {
+      "name": "no item loss",
+      "ok": true,
+      "detail": "5000→5000"
+    },
+    {
+      "name": "no customer loss",
+      "ok": true,
+      "detail": "10→10"
+    },
+    {
+      "name": "no sales loss",
+      "ok": true,
+      "detail": "20002→20002"
+    },
+    {
+      "name": "no sale-line loss",
+      "ok": true,
+      "detail": "20252→20252"
+    },
+    {
+      "name": "invoice total fingerprint intact",
+      "ok": true,
+      "detail": "20 samples"
+    },
+    {
+      "name": "restored prior live DB after test",
+      "ok": true,
+      "detail": "C:\\Users\\Nour Soft\\Documents\\CASR\\data\\cashier.db.aside-during-migrate-1794144061559"
+    }
+  ]
+}

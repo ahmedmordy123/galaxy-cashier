@@ -1,0 +1,92 @@
+{
+  "at": "2026-11-08T13:57:45.618Z",
+  "honesty": {
+    "setupInstaller": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier Setup 1.1.0.exe",
+    "portable": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe",
+    "note": "Portable = Galaxy Cashier 1.1.0.exe launched and /health+login exercised. Setup = Galaxy Cashier Setup 1.1.0.exe artifact verified + same payload tested via win-unpacked (files NSIS packs). Full silent NSIS install on clean VM not automated here."
+  },
+  "passed": 16,
+  "total": 16,
+  "results": [
+    {
+      "name": "package.json version 1.1.0",
+      "ok": true,
+      "detail": "1.1.0"
+    },
+    {
+      "name": "Setup 1.1.0 artifact present",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier Setup 1.1.0.exe"
+    },
+    {
+      "name": "Setup 1.1.0 size ~NSIS",
+      "ok": true,
+      "detail": "104 MB"
+    },
+    {
+      "name": "Portable 1.1.0 artifact present",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe"
+    },
+    {
+      "name": "win-unpacked (Setup payload) present",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\dist\\win-unpacked\\Galaxy Cashier.exe"
+    },
+    {
+      "name": "artifact names encode 1.1.0",
+      "ok": true,
+      "detail": "Galaxy Cashier Setup 1.1.0.exe / Galaxy Cashier 1.1.0.exe"
+    },
+    {
+      "name": "Portable-1.1.0 file exists",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe"
+    },
+    {
+      "name": "Portable-1.1.0 size > 50MB",
+      "ok": true,
+      "detail": "104 MB"
+    },
+    {
+      "name": "Portable-1.1.0 /health",
+      "ok": true,
+      "detail": "33614ms"
+    },
+    {
+      "name": "Portable-1.1.0 login",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "Portable-1.1.0 has vat settings keys",
+      "ok": true,
+      "detail": "vat_enabled=true tax_mode=INCLUSIVE"
+    },
+    {
+      "name": "Setup-payload-win-unpacked-1.1.0 file exists",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\dist\\win-unpacked\\Galaxy Cashier.exe"
+    },
+    {
+      "name": "Setup-payload-win-unpacked-1.1.0 size > 50MB",
+      "ok": true,
+      "detail": "172 MB"
+    },
+    {
+      "name": "Setup-payload-win-unpacked-1.1.0 /health",
+      "ok": true,
+      "detail": "7081ms"
+    },
+    {
+      "name": "Setup-payload-win-unpacked-1.1.0 login",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "Setup-payload-win-unpacked-1.1.0 has vat settings keys",
+      "ok": true,
+      "detail": "vat_enabled=true tax_mode=EXCLUSIVE"
+    }
+  ]
+}
