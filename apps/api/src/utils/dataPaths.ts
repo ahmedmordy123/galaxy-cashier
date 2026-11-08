@@ -9,9 +9,15 @@ export function userDocumentsDir(): string {
   return path.join(process.env.USERPROFILE || process.env.HOME || process.cwd(), 'Documents')
 }
 
+/** Machine-wide ProgramData root (Setup installs). */
+export function programDataGalaxyRoot(): string {
+  if (process.env.CASR_PROGRAMDATA_ROOT) return process.env.CASR_PROGRAMDATA_ROOT
+  return path.join(process.env.ProgramData || 'C:\\ProgramData', 'GalaxyCashier')
+}
+
 /**
- * Live database folder — survives app reinstall; NOT under Electron AppData.
- * Default: Documents\CASR\data\cashier.db
+ * Live database folder — survives app reinstall; NOT under Electron AppData / $INSTDIR.
+ * Prefer CASR_DATA_DIR (set by Electron). Fallback: ProgramData\GalaxyCashier\data (Setup).
  */
 export function liveDataDir(): string {
   if (process.env.CASR_DATA_DIR) {
@@ -19,7 +25,7 @@ export function liveDataDir(): string {
     fs.mkdirSync(d, { recursive: true })
     return d
   }
-  const d = path.join(userDocumentsDir(), 'CASR', 'data')
+  const d = path.join(programDataGalaxyRoot(), 'data')
   fs.mkdirSync(d, { recursive: true })
   return d
 }
@@ -28,8 +34,12 @@ export function liveDbPath(): string {
   return path.join(liveDataDir(), 'cashier.db')
 }
 
+/** Default backups: ProgramData\GalaxyCashier\backups (Setup machine-wide). */
 export function defaultBackupsDir(): string {
-  return path.join(userDocumentsDir(), 'CASR-Backups')
+  if (process.env.CASR_BACKUP_DIR_DEFAULT) {
+    return process.env.CASR_BACKUP_DIR_DEFAULT
+  }
+  return path.join(programDataGalaxyRoot(), 'backups')
 }
 
 /**
@@ -99,8 +109,8 @@ export function sanitizeBackupDirectory(input: string | undefined | null): strin
 }
 
 /**
- * Backups live in a SEPARATE folder from live data (default Documents\CASR-Backups),
- * or a user-chosen absolute path from settings / backup-config.json.
+ * Backups live in a SEPARATE folder from live data
+ * (default ProgramData\GalaxyCashier\backups), or a user-chosen absolute path.
  */
 export function backupsRootDir(): string {
   if (process.env.CASR_BACKUP_DIR) {
@@ -116,27 +126,48 @@ export function backupsRootDir(): string {
   return d
 }
 
-/** One-time: move files from old Documents\CASR\backups → default CASR-Backups */
+/** One-time: copy legacy Documents backups → ProgramData\GalaxyCashier\backups */
 export function migrateLegacyBackupsIfNeeded(): void {
-  const legacy = path.join(userDocumentsDir(), 'CASR', 'backups')
   const dest = defaultBackupsDir()
   fs.mkdirSync(dest, { recursive: true })
-  if (!fs.existsSync(legacy)) return
-  let names: string[] = []
-  try {
-    names = fs.readdirSync(legacy).filter((f) => f.endsWith('.db'))
-  } catch {
-    return
-  }
-  for (const name of names) {
-    const from = path.join(legacy, name)
-    const to = path.join(dest, name)
-    if (fs.existsSync(to)) continue
+  const legacies = [
+    path.join(userDocumentsDir(), 'CASR', 'backups'),
+    path.join(userDocumentsDir(), 'CASR-Backups'),
+  ]
+  for (const legacy of legacies) {
+    if (!fs.existsSync(legacy)) continue
+    let names: string[] = []
     try {
-      fs.copyFileSync(from, to)
+      names = fs.readdirSync(legacy).filter((f) => f.endsWith('.db'))
     } catch {
-      /* ignore */
+      continue
     }
+    for (const name of names) {
+      const from = path.join(legacy, name)
+      const to = path.join(dest, name)
+      if (fs.existsSync(to)) continue
+      try {
+        fs.copyFileSync(from, to)
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
+/** True if directory exists and is writable (for secondary backup mirror). */
+export function isBackupDirectoryAvailable(dir: string | null | undefined): boolean {
+  const d = sanitizeBackupDirectory(dir || '')
+  if (!d) return false
+  try {
+    if (!fs.existsSync(path.parse(d).root)) return false
+    fs.mkdirSync(d, { recursive: true })
+    const probe = path.join(d, `.casr-write-probe-${Date.now()}`)
+    fs.writeFileSync(probe, 'ok')
+    fs.unlinkSync(probe)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -153,10 +184,10 @@ export type AppDataMigrationResult = {
 }
 
 /**
- * Canonical live DB is Documents\CASR\data\cashier.db.
- * One-time copy from legacy AppData only when Documents DB is missing and
- * migration has never been recorded. Later absence of Documents DB uses seed
- * (Electron) / empty create — never re-applies a stale AppData copy.
+ * Canonical live DB is CASR_DATA_DIR / ProgramData\GalaxyCashier\data\cashier.db.
+ * One-time copy from legacy AppData only when live DB is missing and
+ * migration has never been recorded. Later absence uses seed (Electron) /
+ * empty create — never re-applies a stale AppData copy.
  */
 export function migrateLiveDbFromAppDataIfNeeded(): string {
   return migrateLiveDbFromAppDataDetailed().dest

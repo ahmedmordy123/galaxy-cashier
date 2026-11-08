@@ -1,0 +1,62 @@
+{
+  "at": "2026-11-08T16:07:37.620Z",
+  "passed": 11,
+  "total": 11,
+  "results": [
+    {
+      "name": "uninstall removed install dir",
+      "ok": true,
+      "detail": "C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\casr-uninst-z1u7oc\\GalaxyCashier"
+    },
+    {
+      "name": "uninstall kept ProgramData data",
+      "ok": true,
+      "detail": "C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\casr-uninst-z1u7oc\\ProgramData\\GalaxyCashier\\data\\cashier.db"
+    },
+    {
+      "name": "uninstall kept ProgramData backups",
+      "ok": true,
+      "detail": "C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\casr-uninst-z1u7oc\\ProgramData\\GalaxyCashier\\backups\\backup-marker.db"
+    },
+    {
+      "name": "upgrade recreated install dir",
+      "ok": true,
+      "detail": "v1.1.1"
+    },
+    {
+      "name": "upgrade preserved live DB bytes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upgrade preserved backups",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "installer.nsh creates ProgramData data+backups",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "installer.nsh sets Users Modify ACL",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "installer.nsh documents preserve-on-uninstall",
+      "ok": true,
+      "detail": "customUnInstall comments"
+    },
+    {
+      "name": "deleteAppDataOnUninstall is false",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "customUnInstall does not RMDir ProgramData data",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

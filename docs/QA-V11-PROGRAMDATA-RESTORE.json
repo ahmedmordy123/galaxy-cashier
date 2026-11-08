@@ -1,0 +1,65 @@
+{
+  "at": "2026-11-08T16:07:39.788Z",
+  "db": "C:\\ProgramData\\GalaxyCashier\\data\\cashier.db",
+  "backups": "C:\\ProgramData\\GalaxyCashier\\backups",
+  "name": "cashier-backup-2026-11-08T16-07-39.db",
+  "passed": 11,
+  "total": 11,
+  "results": [
+    {
+      "name": "ProgramData ACL set",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier"
+    },
+    {
+      "name": "seeded ProgramData DB",
+      "ok": true,
+      "detail": "from C:\\Users\\Nour Soft\\Documents\\CASR\\data\\cashier.db"
+    },
+    {
+      "name": "API health on ProgramData absolute URL",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\cashier.db"
+    },
+    {
+      "name": "login",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "read tax_rate",
+      "ok": true,
+      "detail": "14"
+    },
+    {
+      "name": "backup created in ProgramData\\backups",
+      "ok": true,
+      "detail": "cashier-backup-2026-11-08T16-07-39.db"
+    },
+    {
+      "name": "mutated tax_rate=99",
+      "ok": true,
+      "detail": "99"
+    },
+    {
+      "name": "restore reconnected",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":{\"restoredFrom\":\"C:\\\\ProgramData\\\\GalaxyCashier\\\\backups\\\\cashier-backup-2026-11-08T16-07-39.db\",\"safetyBackup\":\"C:\\\\ProgramData\\\\GalaxyCashier\\\\backups\\\\pre"
+    },
+    {
+      "name": "post-restore tax restored without restart",
+      "ok": true,
+      "detail": "after=14 before=14"
+    },
+    {
+      "name": "PRAGMA integrity_check",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "ProgramData DB still present after test",
+      "ok": true,
+      "detail": "size 630784→630784"
+    }
+  ]
+}

@@ -253,11 +253,34 @@ function killAll() {
 }
 
 // ─── Database initialisation (production) ─────────────────────────────────────
-// New installs: live DB under %LOCALAPPDATA%\GalaxyCashier\data
-// Existing Documents\CASR\data\cashier.db kept as-is (no auto-move).
-// Backups always under Documents\CASR-Backups.
-// OneDrive: warn only — never auto-move.
-// Prisma opens via cwd=dataDir + file:./cashier.db (no 8.3 / hardlink required).
+// Setup (NSIS):   C:\ProgramData\GalaxyCashier\data  (machine-wide, no junction)
+// Portable:       %LOCALAPPDATA%\GalaxyCashier\data  (per-user; junction if spaces)
+// Backups:        C:\ProgramData\GalaxyCashier\backups (default)
+// Uninstall never deletes ProgramData GalaxyCashier data/backups.
+
+function isPortableBuild() {
+  if (process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE) return true
+  const res = process.resourcesPath || ''
+  const exe = process.execPath || ''
+  return /\\Temp\\/i.test(res) || /\\Temp\\/i.test(exe)
+}
+
+function programDataGalaxyRoot() {
+  return path.join(process.env.ProgramData || 'C:\\ProgramData', 'GalaxyCashier')
+}
+
+function programDataLiveDataDir() {
+  return path.join(programDataGalaxyRoot(), 'data')
+}
+
+function programDataBackupsDir() {
+  return path.join(programDataGalaxyRoot(), 'backups')
+}
+
+function localAppDataLiveDataDir() {
+  const localApp = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
+  return path.join(localApp, 'GalaxyCashier', 'data')
+}
 
 /** Resolved Documents path (follows shell-folder redirect / junctions). */
 function resolveDocumentsDir() {
@@ -284,33 +307,61 @@ function isOneDrivePath(p) {
   return /onedrive/i.test(p) || /\\OneDrive[^\\]*\\/i.test(p)
 }
 
-/** New-install live data dir (per-user LocalAppData). */
-function localAppDataLiveDataDir() {
-  const localApp = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
-  return path.join(localApp, 'GalaxyCashier', 'data')
+/** Ensure ProgramData GalaxyCashier ACL (Users Modify) — best-effort if Setup already did it. */
+function ensureProgramDataAcl(root) {
+  try {
+    fs.mkdirSync(path.join(root, 'data'), { recursive: true })
+    fs.mkdirSync(path.join(root, 'backups'), { recursive: true })
+    execSync(
+      `icacls "${root}" /inheritance:r /grant:r "NT AUTHORITY\\SYSTEM:(OI)(CI)F" /grant:r "BUILTIN\\Administrators:(OI)(CI)F" /grant:r "BUILTIN\\Users:(OI)(CI)M"`,
+      { windowsHide: true, stdio: 'ignore' },
+    )
+  } catch (e) {
+    log(`[db] ensureProgramDataAcl: ${e.message}`)
+  }
 }
 
 function initDatabase(res) {
+  const portable = isPortableBuild()
   const documentsDir = resolveDocumentsDir()
   const docsDataDir = path.join(documentsDir, 'CASR', 'data')
   const docsDb = path.join(docsDataDir, 'cashier.db')
+  const pdRoot = programDataGalaxyRoot()
+  const pdDataDir = programDataLiveDataDir()
+  const pdDb = path.join(pdDataDir, 'cashier.db')
   const localDataDir = localAppDataLiveDataDir()
   const localDb = path.join(localDataDir, 'cashier.db')
+  const backupsDir = programDataBackupsDir()
   const onedriveDocs = isOneDrivePath(documentsDir) || isOneDrivePath(docsDataDir)
 
-  // Prefer existing Documents DB (this machine / upgrades) — never auto-move it.
-  // Else existing LocalAppData. Else NEW install → LocalAppData.
   let dataDir
   let locationTag
-  if (fs.existsSync(docsDb)) {
-    dataDir = docsDataDir
-    locationTag = 'Documents (existing — kept)'
-  } else if (fs.existsSync(localDb)) {
-    dataDir = localDataDir
-    locationTag = 'LocalAppData (existing)'
+
+  if (!portable) {
+    // Setup / win-unpacked: machine-wide ProgramData (no junction needed)
+    ensureProgramDataAcl(pdRoot)
+    dataDir = pdDataDir
+    locationTag = fs.existsSync(pdDb)
+      ? 'ProgramData (Setup — existing)'
+      : 'ProgramData (Setup — new/upgrade target)'
+    global.__casrPortableWarn = null
   } else {
-    dataDir = localDataDir
-    locationTag = 'LocalAppData (new install default)'
+    // Portable: per-user LocalAppData + UI warning
+    if (fs.existsSync(localDb)) {
+      dataDir = localDataDir
+      locationTag = 'LocalAppData (Portable existing)'
+    } else if (fs.existsSync(docsDb)) {
+      // Keep legacy Documents for this user profile (no auto-move)
+      dataDir = docsDataDir
+      locationTag = 'Documents (Portable — existing kept)'
+    } else {
+      dataDir = localDataDir
+      locationTag = 'LocalAppData (Portable new)'
+    }
+    global.__casrPortableWarn = {
+      dataDir,
+      note: 'نسخة Portable مرتبطة بمستخدم ويندوز واحد (LocalAppData). للتثبيت متعدد المستخدمين استخدم Setup.',
+    }
   }
 
   const dbFile = path.join(dataDir, 'cashier.db')
@@ -318,35 +369,33 @@ function initDatabase(res) {
   const legacyAppDataDb = path.join(app.getPath('userData'), 'cashier.db')
   const legacyImsDb = path.join(app.getPath('appData'), 'IMS-Pro', 'cashier.db')
 
+  log(`[db] build mode     : ${portable ? 'PORTABLE' : 'SETUP'}`)
   log(`[db] Documents folder : ${documentsDir}`)
-  log(`[db] OneDrive redirect: ${onedriveDocs ? 'YES — warn only (no auto-move)' : 'no'}`)
+  log(`[db] OneDrive redirect: ${onedriveDocs ? 'YES — warn only' : 'no'}`)
   log(`[db] live data dir  : ${dataDir}`)
   log(`[db] location       : ${locationTag}`)
   log(`[db] database path  : ${dbFile}`)
-  log(`[db] backups folder : ${path.join(documentsDir, 'CASR-Backups')}`)
+  log(`[db] backups folder : ${backupsDir}`)
 
   if (onedriveDocs && dataDir === docsDataDir) {
-    log(`[db] WARN: live DB is under OneDrive-synced Documents — SQLite may lock/corrupt`)
     global.__casrOneDriveDbWarn = { documentsDir, dbFile }
   }
 
   fs.mkdirSync(dataDir, { recursive: true })
+  try {
+    fs.mkdirSync(backupsDir, { recursive: true })
+  } catch (e) {
+    log(`[db] backups mkdir: ${e.message}`)
+  }
 
-  const legacyProgramDataDb = path.join(
-    process.env.ProgramData || 'C:\\ProgramData',
-    'GalaxyCashier',
-    'data',
-    'cashier.db',
-  )
-
-  // One-time legacy import into the chosen dataDir only when empty.
+  // One-time legacy import into chosen dataDir when empty (Setup: fill ProgramData)
   if (!fs.existsSync(dbFile)) {
     if (fs.existsSync(marker)) {
-      log(`[db] DB missing but migration marker present — will use seed (not legacy again)`)
+      log(`[db] DB missing but migration marker present — will use seed`)
     } else {
-      const sources = [legacyAppDataDb, legacyImsDb, legacyProgramDataDb].filter(
-        (p) => p && fs.existsSync(p),
-      )
+      const sources = portable
+        ? [docsDb, legacyAppDataDb, legacyImsDb, pdDb].filter((p) => p && fs.existsSync(p))
+        : [docsDb, localDb, legacyAppDataDb, legacyImsDb].filter((p) => p && fs.existsSync(p))
       for (const src of sources) {
         try {
           fs.copyFileSync(src, dbFile)
@@ -356,6 +405,7 @@ function initDatabase(res) {
               at: new Date().toISOString(),
               source: src,
               dest: dbFile,
+              mode: portable ? 'portable' : 'setup',
               note: 'One-time legacy import into live data dir.',
             }, null, 2),
             'utf8',
@@ -374,14 +424,12 @@ function initDatabase(res) {
   if (!fs.existsSync(dbFile)) {
     const seedDb = path.join(res, 'seed.db')
     log(`[db] First run — seed.db: ${seedDb}  exists=${fs.existsSync(seedDb)}`)
-
     if (!fs.existsSync(seedDb)) {
       throw new Error(
         `seed.db not found in resources.\nExpected: ${seedDb}\n` +
-        `Check that the build included assets/seed.db in extraResources.`
+        `Check that the build included assets/seed.db in extraResources.`,
       )
     }
-
     fs.copyFileSync(seedDb, dbFile)
     log(`[db] Copied seed.db → ${dbFile}`)
   }
@@ -408,25 +456,27 @@ function initDatabase(res) {
     throw new Error(`Database not readable/writable: ${dbFile}\n${e.message}`)
   }
 
-  // Prisma resolves file:./ relative to the engine/schema dir (NOT process.cwd) —
-  // so cwd-relative is unsafe. Use a space-free junction when the live path needs it.
-  const access = ensurePrismaJunctionAccess(dataDir, dbFile)
+  // Setup ProgramData path is space-free → absolute URL only.
+  // Portable may need junction when LocalAppData/Documents have spaces.
+  const access = portable
+    ? ensurePrismaJunctionAccess(dataDir, dbFile)
+    : { strategy: 'absolute-programdata', url: 'file:' + dbFile.replace(/\\/g, '/') }
   log(`[db] Prisma strategy: ${access.strategy} url=${access.url}`)
   return {
     dataDir,
     dbFile,
     documentsDir,
+    backupsDir,
+    portable,
     onedriveDocs,
     locationTag,
     url: access.url,
-    apiCwd: null, // spawn API with its own apiDir cwd
   }
 }
 
 /**
- * Point Prisma at the live DB via absolute URL.
- * If live path has spaces/non-ASCII: mklink /J from ProgramData\GalaxyCashier\live
- * (space-free) → dataDir. Live bytes stay in dataDir; junction is access only.
+ * Portable only: if live path has spaces/non-ASCII, junction from a space-free
+ * ProgramData\GalaxyCashier\portable-live → dataDir. Setup never calls this.
  */
 function ensurePrismaJunctionAccess(dataDir, dbFile) {
   const needsLink = /\s/.test(dataDir) || /[^\x00-\x7F]/.test(dataDir) || /\s/.test(dbFile)
@@ -436,21 +486,10 @@ function ensurePrismaJunctionAccess(dataDir, dbFile) {
       url: 'file:' + dbFile.replace(/\\/g, '/'),
     }
   }
-  const juncParent = path.join(process.env.ProgramData || 'C:\\ProgramData', 'GalaxyCashier')
-  const junc = path.join(juncParent, 'live')
+  const juncParent = programDataGalaxyRoot()
+  const junc = path.join(juncParent, 'portable-live')
   try {
     fs.mkdirSync(juncParent, { recursive: true })
-    // Restrict ACL: current user + Administrators only
-    try {
-      const user = process.env.USERNAME || os.userInfo().username
-      execSync(
-        `icacls "${juncParent}" /inheritance:r /grant:r "${user}:(OI)(CI)(F)" /grant:r "Administrators:(OI)(CI)(F)" /grant:r "SYSTEM:(OI)(CI)(F)"`,
-        { windowsHide: true, stdio: 'ignore' },
-      )
-    } catch (e) {
-      log(`[db] icacls on GalaxyCashier: ${e.message}`)
-    }
-    // Recreate junction if target differs
     if (fs.existsSync(junc)) {
       try {
         const real = fs.realpathSync(junc)
@@ -467,20 +506,16 @@ function ensurePrismaJunctionAccess(dataDir, dbFile) {
     }
     if (!fs.existsSync(junc)) {
       execSync(`cmd /c mklink /J "${junc}" "${dataDir}"`, { windowsHide: true })
-      log(`[db] junction ${junc} → ${dataDir}`)
+      log(`[db] portable junction ${junc} → ${dataDir}`)
     } else {
-      log(`[db] reusing junction ${junc}`)
-    }
-    const juncDb = path.join(junc, 'cashier.db')
-    if (!fs.existsSync(juncDb)) {
-      throw new Error(`junction missing cashier.db at ${juncDb}`)
+      log(`[db] reusing portable junction ${junc}`)
     }
     return {
-      strategy: 'junction',
+      strategy: 'junction-portable',
       url: 'file:' + junc.replace(/\\/g, '/') + '/cashier.db',
     }
   } catch (e) {
-    log(`[db] junction failed (${e.message}) — trying absolute path anyway`)
+    log(`[db] portable junction failed (${e.message}) — absolute fallback`)
     return {
       strategy: 'absolute-fallback',
       url: 'file:' + dbFile.replace(/\\/g, '/'),
@@ -813,6 +848,8 @@ async function startServers() {
       GALAXY_RUNTIME_ID:           runtime.identity?.id || '',
       CASR_DOCUMENTS_DIR:          dbInfo.documentsDir,
       CASR_DATA_DIR:               dbInfo.dataDir,
+      CASR_BACKUP_DIR_DEFAULT:     dbInfo.backupsDir || programDataBackupsDir(),
+      GALAXY_INSTALL_MODE:         dbInfo.portable ? 'portable' : 'setup',
     }, 'api')
   } else {
     log(`[app] API already on :${API_PORT}`)
@@ -942,6 +979,28 @@ if (gotLock) {
 
       await createMainWindow(pendingRoute)
 
+      // Portable: warn single-Windows-user scope
+      if (global.__casrPortableWarn) {
+        const w = global.__casrPortableWarn
+        global.__casrPortableWarn = null
+        try {
+          await dialog.showMessageBox(mainWindow || undefined, {
+            type: 'info',
+            title: 'Galaxy Cashier — نسخة Portable',
+            message: 'هذه النسخة لمستخدم ويندوز واحد',
+            detail:
+              `${w.note}\n\n` +
+              `مسار البيانات:\n${w.dataDir}\n\n` +
+              `للتثبيت على الجهاز لعدة مستخدمين (كاشير + أدمن): استخدم Setup.`,
+            buttons: ['حسناً'],
+            defaultId: 0,
+            noLink: true,
+          })
+        } catch (e) {
+          log(`[db] Portable warn dialog failed: ${e.message}`)
+        }
+      }
+
       // OneDrive Documents: warn only — no auto-move of live DB
       if (global.__casrOneDriveDbWarn) {
         const w = global.__casrOneDriveDbWarn
@@ -954,8 +1013,7 @@ if (gotLock) {
             detail:
               `مسار قاعدة البيانات الحالية:\n${w.dbFile}\n\n` +
               `قواعد SQLite على مجلدات مزامنة (OneDrive) قد تتعطل أو تتلف.\n\n` +
-              `التثبيتات الجديدة تضع الـ DB في LocalAppData (خارج OneDrive).\n` +
-              `النسخ الاحتياطية تبقى في Documents\\CASR-Backups.\n` +
+              `تثبيت Setup يضع الـ DB في ProgramData (خارج OneDrive).\n` +
               `لن يتم نقل قاعدة البيانات الحالية تلقائياً.`,
             buttons: ['حسناً'],
             defaultId: 0,
@@ -993,21 +1051,29 @@ ipcMain.handle('select-backup-folder', async () => {
 })
 
 function readExitBackupConfig() {
-  const cfgPath = path.join(os.homedir(), 'Documents', 'CASR', 'data', 'backup-config.json')
-  const fallbackDir = path.join(os.homedir(), 'Documents', 'CASR-Backups')
-  try {
-    const raw = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
-    return {
-      directory: (raw.directory && String(raw.directory).trim()) || fallbackDir,
-      secondaryDirectory:
-        raw.secondaryDirectory && String(raw.secondaryDirectory).trim()
-          ? String(raw.secondaryDirectory).trim()
-          : null,
-      onExit: raw.onExit !== false,
+  const fallbackDir = programDataBackupsDir()
+  const candidates = [
+    path.join(programDataLiveDataDir(), 'backup-config.json'),
+    path.join(localAppDataLiveDataDir(), 'backup-config.json'),
+    path.join(os.homedir(), 'Documents', 'CASR', 'data', 'backup-config.json'),
+  ]
+  for (const cfgPath of candidates) {
+    try {
+      if (!fs.existsSync(cfgPath)) continue
+      const raw = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
+      return {
+        directory: (raw.directory && String(raw.directory).trim()) || fallbackDir,
+        secondaryDirectory:
+          raw.secondaryDirectory && String(raw.secondaryDirectory).trim()
+            ? String(raw.secondaryDirectory).trim()
+            : null,
+        onExit: raw.onExit !== false,
+      }
+    } catch {
+      /* try next */
     }
-  } catch {
-    return { directory: fallbackDir, secondaryDirectory: null, onExit: true }
   }
+  return { directory: fallbackDir, secondaryDirectory: null, onExit: true }
 }
 
 /** Sync copy with a hard wall-clock budget so a missing/slow USB never hangs quit. */

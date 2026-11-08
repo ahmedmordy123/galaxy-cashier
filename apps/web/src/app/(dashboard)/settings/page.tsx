@@ -49,7 +49,7 @@ export default function SettingsPage() {
   const [backupDirectory, setBackupDirectory] = useState('')
   const [backupDirectorySecondary, setBackupDirectorySecondary] = useState('')
   const [backupOnExit, setBackupOnExit] = useState(true)
-  const [defaultBackupDir, setDefaultBackupDir] = useState('Documents\\CASR-Backups')
+  const [defaultBackupDir, setDefaultBackupDir] = useState('ProgramData\\GalaxyCashier\\backups')
   const [googleDriveInfo, setGoogleDriveInfo] = useState<{
     installed: boolean
     roots: string[]
@@ -58,6 +58,7 @@ export default function SettingsPage() {
     hints: string[]
   } | null>(null)
   const [pathLooksLikeGoogleDrive, setPathLooksLikeGoogleDrive] = useState(false)
+  const [secondaryBackupWarning, setSecondaryBackupWarning] = useState<string | null>(null)
   const [autoBackupStatus, setAutoBackupStatus] = useState<{
     lastAt: string
     nextDueAt: string | null
@@ -199,8 +200,16 @@ export default function SettingsPage() {
         })
         if (st.defaultDirectory) setDefaultBackupDir(String(st.defaultDirectory))
         if (typeof st.onExit === 'boolean') setBackupOnExit(st.onExit)
+        if (typeof st.secondaryDirectory === 'string') {
+          setBackupDirectorySecondary(st.secondaryDirectory)
+        }
         if (st.googleDrive) setGoogleDriveInfo(st.googleDrive)
         setPathLooksLikeGoogleDrive(Boolean(st.pathLooksLikeGoogleDrive))
+        setSecondaryBackupWarning(
+          typeof st.secondaryWarning === 'string' && st.secondaryWarning
+            ? st.secondaryWarning
+            : null,
+        )
       }
     } catch {
       setBackupList([])
@@ -942,6 +951,16 @@ export default function SettingsPage() {
                   تُنسخ مرآة إضافية عند كل Backup يدوي/تلقائي/خروج. لو الفلاشة مش متوصلة، النسخ الأساسي
                   يكمل والإغلاق لا يتوقف.
                 </p>
+                {secondaryBackupWarning && (
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2 p-2 rounded-md bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
+                    {secondaryBackupWarning}
+                  </p>
+                )}
+                {!backupDirectorySecondary.trim() && !secondaryBackupWarning && (
+                  <p className="text-[11px] text-amber-700 mt-1">
+                    تنبيه: لم يُضبط مسار النسخة الثانية — يُفضّل فلاشة أو مجلد خارجي كنسخة احتياطية إضافية.
+                  </p>
+                )}
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <label className="text-sm">

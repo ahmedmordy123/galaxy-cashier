@@ -6,6 +6,7 @@ import { disconnectPrisma, prisma, reconnectPrisma } from '../db/prisma'
 import {
   backupsRootDir,
   defaultBackupsDir,
+  isBackupDirectoryAvailable,
   liveDbPath,
   migrateLegacyBackupsIfNeeded,
   migrateLiveDbFromAppDataIfNeeded,
@@ -110,6 +111,8 @@ export async function getAutoBackupConfig() {
   const secondaryDirectory = sanitizeBackupDirectory(await getSetting('backup_directory_secondary', ''))
   const onExit = (await getSetting('backup_on_exit', 'true')) !== 'false'
   const defaultDirectory = defaultBackupsDir()
+  const secondaryConfigured = Boolean(secondaryDirectory)
+  const secondaryAvailable = secondaryConfigured && isBackupDirectoryAvailable(secondaryDirectory)
   const { detectGoogleDrive, isPathUnderGoogleDrive } = await import('../utils/googleDrive')
   const googleDrive = detectGoogleDrive()
   return {
@@ -119,6 +122,13 @@ export async function getAutoBackupConfig() {
     lastAt,
     directory,
     secondaryDirectory,
+    secondaryConfigured,
+    secondaryAvailable,
+    secondaryWarning: !secondaryConfigured
+      ? 'لم يُضبط مسار النسخة الثانية (فلاشة/خارجي) — النسخ الأساسي فقط.'
+      : !secondaryAvailable
+        ? 'مسار النسخة الثانية غير متاح الآن (الفلاشة غير متصلة أو المسار غير قابل للكتابة).'
+        : null,
     onExit,
     defaultDirectory,
     pathLooksLikeGoogleDrive: isPathUnderGoogleDrive(directory, googleDrive.roots),

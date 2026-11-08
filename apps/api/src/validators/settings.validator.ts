@@ -29,7 +29,7 @@ export const updateSettingsSchema = z.object({
   auto_backup_enabled: z.enum(['true', 'false']).optional(),
   auto_backup_interval_hours: z.union([z.string(), z.number()]).optional(),
   auto_backup_keep_count: z.union([z.string(), z.number()]).optional(),
-  /** Absolute path for backups (empty = default Documents\\CASR-Backups) */
+  /** Absolute path for backups (empty = default ProgramData\\GalaxyCashier\\backups) */
   backup_directory: z.string().max(500).optional(),
   /** Optional second absolute path (USB / external folder); best-effort mirror */
   backup_directory_secondary: z.string().max(500).optional(),

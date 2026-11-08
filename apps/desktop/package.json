@@ -66,6 +66,7 @@
       "shortcutName": "جالاكسي كاشير",
       "uninstallDisplayName": "Galaxy Cashier — جالاكسي كاشير",
       "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
       "artifactName": "${productName} Setup ${version}.${ext}",
       "installerLanguages": ["en_US"],
       "language": "1033",

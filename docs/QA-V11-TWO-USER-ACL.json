@@ -1,0 +1,77 @@
+{
+  "at": "2026-11-08T16:11:34.987Z",
+  "elevated": true,
+  "secondUserRan": true,
+  "testUser": "GalaxyCashierTest",
+  "db": "C:\\ProgramData\\GalaxyCashier\\data\\cashier.db",
+  "backups": "C:\\ProgramData\\GalaxyCashier\\backups",
+  "passed": 13,
+  "total": 13,
+  "results": [
+    {
+      "name": "running elevated (optional for ACL apply)",
+      "ok": true,
+      "detail": "elevated"
+    },
+    {
+      "name": "ACL applied SYSTEM/Admins Full + Users Modify",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier"
+    },
+    {
+      "name": "icacls shows Users:(OI)(CI)(M)",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier BUILTIN\\Users:(OI)(CI)(M) |                              BUILTIN\\Administrators:(OI)(CI)(F) |                              NT AUTHORITY\\SYSTEM:(OI)(CI)(F) |  | Successfully processed 1 files; Failed processing 0 files | "
+    },
+    {
+      "name": "ProgramData DB present",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\cashier.db"
+    },
+    {
+      "name": "current user can write ProgramData\\data",
+      "ok": true,
+      "detail": "Nour Soft"
+    },
+    {
+      "name": "API starts on ProgramData absolute URL",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\cashier.db"
+    },
+    {
+      "name": "login as app admin",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin creates shared marker/invoice",
+      "ok": true,
+      "detail": "admin-invoice-1794154292693"
+    },
+    {
+      "name": "backup into ProgramData\\backups",
+      "ok": true,
+      "detail": "cashier-backup-2026-11-08T16-11-32.db"
+    },
+    {
+      "name": "second Windows user can write ProgramData\\data",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\.user2-probe-1794154292878.txt"
+    },
+    {
+      "name": "shared state visible after admin write",
+      "ok": true,
+      "detail": "admin-invoice-1794154292693"
+    },
+    {
+      "name": "second session creates another invoice/marker",
+      "ok": true,
+      "detail": "user2-invoice-1794154294567"
+    },
+    {
+      "name": "restore by second session (immediate)",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":{\"restoredFrom\":\"C:\\\\ProgramData\\\\GalaxyCashier\\\\backups\\\\cashier-backup-2026-11-08T16-11-32.db\",\"safetyBackup\":\"C:\\\\ProgramData\\\\GalaxyC"
+    }
+  ]
+}
