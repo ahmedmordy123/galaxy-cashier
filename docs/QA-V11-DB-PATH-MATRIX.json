@@ -1,0 +1,103 @@
+{
+  "at": "2026-11-08T14:49:31.058Z",
+  "machine": {
+    "userProfile": "C:\\Users\\Nour Soft",
+    "localAppData": "C:\\Users\\Nour Soft\\AppData\\Local",
+    "documents": "C:\\Users\\Nour Soft\\Documents",
+    "oneDriveEnv": "C:\\Users\\Nour Soft\\OneDrive"
+  },
+  "passed": 18,
+  "total": 18,
+  "results": [
+    {
+      "name": "seed.db present",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\assets\\seed.db"
+    },
+    {
+      "name": "staging API present",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\staging\\api"
+    },
+    {
+      "name": "prisma engine present",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\staging\\api\\node_modules\\.prisma\\client\\query_engine-windows.dll.node"
+    },
+    {
+      "name": "8.3 registry readable",
+      "ok": true,
+      "detail": "per-volume(2)"
+    },
+    {
+      "name": "A Arabic path created",
+      "ok": true,
+      "detail": "C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\casr-path-matrix-1794149368986\\مستخدم-عربي-اختبار\\CASR\\data\\cashier.db"
+    },
+    {
+      "name": "A short-path result",
+      "ok": true,
+      "detail": "short=C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\CASR-P~2\\--5920~1\\CASR\\data\\cashier.db"
+    },
+    {
+      "name": "A prisma URL",
+      "ok": true,
+      "detail": "file:C:/Users/NOURSO~1/AppData/Local/Temp/CASR-P~2/--5920~1/CASR/data/cashier.db"
+    },
+    {
+      "name": "A Arabic Prisma open",
+      "ok": true,
+      "detail": "url=file:C:/Users/NOURSO~1/AppData/Local/Temp/CASR-P~2/--5920~1/CASR/data/cashier.db | OK 1"
+    },
+    {
+      "name": "B space+symbol path created",
+      "ok": true,
+      "detail": "C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\casr-path-matrix-1794149368986\\User Name (Test) & Co\\CASR\\data\\cashier.db"
+    },
+    {
+      "name": "B short-path shortened?",
+      "ok": true,
+      "detail": "short=C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\CASR-P~2\\USERNA~1\\CASR\\data\\cashier.db"
+    },
+    {
+      "name": "B space+symbol via short/encode Prisma open",
+      "ok": true,
+      "detail": "url=file:C:/Users/NOURSO~1/AppData/Local/Temp/CASR-P~2/USERNA~1/CASR/data/cashier.db | OK 1"
+    },
+    {
+      "name": "C forced encode URL (8.3-off sim)",
+      "ok": true,
+      "detail": "file:C:/Users/NOURSO~1/AppData/Local/Temp/casr-path-matrix-1794149368986/User%20Name%20(Test)%20%26%20Co/CASR/data/cashier.db"
+    },
+    {
+      "name": "C 8.3-off sim encode (expect fail)",
+      "ok": true,
+      "detail": "EXPECTED_FAIL code14 | url=file:C:/Users/NOURSO~1/AppData/Local/Temp/casr-path-matrix-1794149368986/User%20Name%20(Test)%20%26%20Co/CASR/data/cashier.db | ERR \nInvalid `prisma.$queryRawUnsafe()` invocation:\n\n\nError querying the database: Error code 14: Unable to open the database file"
+    },
+    {
+      "name": "C2 hardlink created",
+      "ok": true,
+      "detail": "C:\\Users\\Nour Soft\\AppData\\Local\\GalaxyCashier\\data\\cashier-pathmatrix-1794149370035.hl.db"
+    },
+    {
+      "name": "C2 8.3-off via hardlink Prisma open",
+      "ok": true,
+      "detail": "url=file:C:/Users/NOURSO~1/AppData/Local/GALAXY~1/data/cashier-pathmatrix-1794149370035.hl.db | OK 1"
+    },
+    {
+      "name": "C verdict (encode OR hardlink works)",
+      "ok": true,
+      "detail": "hardlink ok (encode failed)"
+    },
+    {
+      "name": "D Documents short-path",
+      "ok": true,
+      "detail": "C:\\Users\\NOURSO~1\\DOCUME~1\\CASR\\data\\cashier.db"
+    },
+    {
+      "name": "D Documents live Prisma open",
+      "ok": true,
+      "detail": "url=file:C:/Users/NOURSO~1/DOCUME~1/CASR/data/cashier.db | OK 1"
+    }
+  ]
+}

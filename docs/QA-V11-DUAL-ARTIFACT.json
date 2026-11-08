@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-08T13:57:45.618Z",
+  "at": "2026-11-08T14:32:04.001Z",
   "honesty": {
     "setupInstaller": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier Setup 1.1.0.exe",
     "portable": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe",
@@ -21,7 +21,7 @@
     {
       "name": "Setup 1.1.0 size ~NSIS",
       "ok": true,
-      "detail": "104 MB"
+      "detail": "228 MB"
     },
     {
       "name": "Portable 1.1.0 artifact present",
@@ -46,12 +46,12 @@
     {
       "name": "Portable-1.1.0 size > 50MB",
       "ok": true,
-      "detail": "104 MB"
+      "detail": "228 MB"
     },
     {
       "name": "Portable-1.1.0 /health",
       "ok": true,
-      "detail": "33614ms"
+      "detail": "23304ms"
     },
     {
       "name": "Portable-1.1.0 login",
@@ -61,7 +61,7 @@
     {
       "name": "Portable-1.1.0 has vat settings keys",
       "ok": true,
-      "detail": "vat_enabled=true tax_mode=INCLUSIVE"
+      "detail": "vat_enabled=true tax_mode=EXCLUSIVE"
     },
     {
       "name": "Setup-payload-win-unpacked-1.1.0 file exists",
@@ -76,7 +76,7 @@
     {
       "name": "Setup-payload-win-unpacked-1.1.0 /health",
       "ok": true,
-      "detail": "7081ms"
+      "detail": "2019ms"
     },
     {
       "name": "Setup-payload-win-unpacked-1.1.0 login",

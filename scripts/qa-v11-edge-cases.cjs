@@ -183,16 +183,33 @@ async function main() {
   })
   check('(أ) settings → EXCLUSIVE while DRAFT open', setEx.ok, String(setEx.status))
 
-  // Confirm WITHOUT re-saving: must keep DRAFT snapshot (not live settings)
-  const conf = await req(token, 'POST', `/sales/${draftInv.id}/confirm`, {
+  // Confirm WITHOUT ack: must block with TAX_POLICY_CHANGED + total preview
+  const confBlocked = await req(token, 'POST', `/sales/${draftInv.id}/confirm`, {
     payments: [{ method: 'CASH', amount: draftTotal }],
   })
-  check('(أ) confirm DRAFT ok after settings change', conf.ok, String(conf.status))
+  check(
+    '(أ) confirm blocked TAX_POLICY_CHANGED',
+    confBlocked.status === 409 && confBlocked.data?.code === 'TAX_POLICY_CHANGED',
+    `status=${confBlocked.status} code=${confBlocked.data?.code}`,
+  )
+  const previewNext = Number(confBlocked.data?.details?.next?.total)
+  check(
+    '(أ) preview shows live EXCLUSIVE total 114',
+    nearly(previewNext, 114),
+    String(previewNext),
+  )
+
+  // Confirm WITH ack: apply live EXCLUSIVE totals
+  const conf = await req(token, 'POST', `/sales/${draftInv.id}/confirm`, {
+    payments: [{ method: 'CASH', amount: 114 }],
+    ackTaxPolicyChange: true,
+  })
+  check('(أ) confirm DRAFT ok after tax-policy ack', conf.ok, String(conf.status))
   if (conf.ok) {
     const c = conf.data.data
     check(
-      '(أ) confirmed keeps INCLUSIVE snapshot (not live EXCLUSIVE)',
-      c.taxMode === 'INCLUSIVE' && nearly(Number(c.total), 100),
+      '(أ) confirmed applies live EXCLUSIVE after ack',
+      c.taxMode === 'EXCLUSIVE' && nearly(Number(c.total), 114),
       `mode=${c.taxMode} total=${c.total}`,
     )
   }
@@ -214,6 +231,49 @@ async function main() {
   // cancel/park cleanup
   if (draft2.ok) {
     await req(token, 'POST', `/sales/${draft2.data.data.id}/cancel`).catch(() => null)
+  }
+
+  // (أ2) DRAFT with VAT on → admin disables VAT → confirm must warn (total drops)
+  await req(token, 'PUT', '/settings', {
+    vat_enabled: 'true',
+    tax_mode: 'EXCLUSIVE',
+    tax_rate: '14',
+  })
+  const draftVat = await req(token, 'POST', '/sales', {
+    paymentType: 'CASH',
+    priceType: 'RETAIL',
+    currency: 'EGP',
+    discountType: 'PERCENT',
+    discount: 0,
+    items: [{ itemId: itemA.id, quantity: 1, unitPrice: 100, originalUnitPrice: 100 }],
+  })
+  const vatDraftTotal = Number(draftVat.data?.data?.total)
+  check('(أ2) DRAFT with VAT on total=114', nearly(vatDraftTotal, 114), String(vatDraftTotal))
+  await req(token, 'PUT', '/settings', { vat_enabled: 'false' })
+  const vatBlock = await req(token, 'POST', `/sales/${draftVat.data.data.id}/confirm`, {
+    payments: [{ method: 'CASH', amount: vatDraftTotal }],
+  })
+  check(
+    '(أ2) confirm blocked after VAT disabled',
+    vatBlock.status === 409 && vatBlock.data?.code === 'TAX_POLICY_CHANGED',
+    `status=${vatBlock.status} code=${vatBlock.data?.code}`,
+  )
+  check(
+    '(أ2) preview next total=100 (VAT off)',
+    nearly(Number(vatBlock.data?.details?.next?.total), 100),
+    String(vatBlock.data?.details?.next?.total),
+  )
+  const vatAck = await req(token, 'POST', `/sales/${draftVat.data.data.id}/confirm`, {
+    payments: [{ method: 'CASH', amount: 100 }],
+    ackTaxPolicyChange: true,
+  })
+  check('(أ2) confirm ok after VAT-off ack', vatAck.ok, String(vatAck.status))
+  if (vatAck.ok) {
+    check(
+      '(أ2) confirmed total=100 tax=0',
+      nearly(Number(vatAck.data.data.total), 100) && nearly(Number(vatAck.data.data.tax), 0),
+      `total=${vatAck.data.data.total} tax=${vatAck.data.data.tax}`,
+    )
   }
 
   // ── (ب) exempt + taxable + invoice discount ────────────────────────────────

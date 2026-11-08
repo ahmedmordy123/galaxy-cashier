@@ -6,6 +6,7 @@ const path = require('path')
 const http = require('http')
 const fs = require('fs')
 const os = require('os')
+const crypto = require('crypto')
 
 const IS_DEV   = !app.isPackaged
 const API_PORT = 4001
@@ -228,8 +229,8 @@ function killStalePort(port) {
 
 // ─── Process management ────────────────────────────────────────────────────────
 
-function spawnServer(cmd, args, cwd, env = {}) {
-  const label    = path.basename(cwd)
+function spawnServer(cmd, args, cwd, env = {}, labelOverride = null) {
+  const label    = labelOverride || path.basename(cwd)
   const useShell = !path.isAbsolute(cmd) && process.platform === 'win32'
   const proc     = spawn(cmd, args, {
     cwd,
@@ -252,30 +253,100 @@ function killAll() {
 }
 
 // ─── Database initialisation (production) ─────────────────────────────────────
-// Live DB lives under Documents\CASR\data (survives reinstall / AppData wipe).
-// Backups are written by the API to Documents\CASR-Backups (separate folder).
+// New installs: live DB under %LOCALAPPDATA%\GalaxyCashier\data
+// Existing Documents\CASR\data\cashier.db kept as-is (no auto-move).
+// Backups always under Documents\CASR-Backups.
+// OneDrive: warn only — never auto-move.
+// Prisma opens via cwd=dataDir + file:./cashier.db (no 8.3 / hardlink required).
+
+/** Resolved Documents path (follows shell-folder redirect / junctions). */
+function resolveDocumentsDir() {
+  let docs = path.join(os.homedir(), 'Documents')
+  try {
+    const raw = execSync(
+      'powershell -NoProfile -Command "[Environment]::GetFolderPath(\'MyDocuments\')"',
+      { encoding: 'utf8', windowsHide: true, timeout: 5000 },
+    ).trim()
+    if (raw && fs.existsSync(raw)) docs = raw
+  } catch {
+    /* keep default */
+  }
+  try {
+    docs = fs.realpathSync(docs)
+  } catch {
+    /* keep */
+  }
+  return docs
+}
+
+function isOneDrivePath(p) {
+  if (!p) return false
+  return /onedrive/i.test(p) || /\\OneDrive[^\\]*\\/i.test(p)
+}
+
+/** New-install live data dir (per-user LocalAppData). */
+function localAppDataLiveDataDir() {
+  const localApp = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
+  return path.join(localApp, 'GalaxyCashier', 'data')
+}
 
 function initDatabase(res) {
-  // Canonical live DB — same path for Setup and Portable (never under asar / install dir).
-  const dataDir = path.join(os.homedir(), 'Documents', 'CASR', 'data')
+  const documentsDir = resolveDocumentsDir()
+  const docsDataDir = path.join(documentsDir, 'CASR', 'data')
+  const docsDb = path.join(docsDataDir, 'cashier.db')
+  const localDataDir = localAppDataLiveDataDir()
+  const localDb = path.join(localDataDir, 'cashier.db')
+  const onedriveDocs = isOneDrivePath(documentsDir) || isOneDrivePath(docsDataDir)
+
+  // Prefer existing Documents DB (this machine / upgrades) — never auto-move it.
+  // Else existing LocalAppData. Else NEW install → LocalAppData.
+  let dataDir
+  let locationTag
+  if (fs.existsSync(docsDb)) {
+    dataDir = docsDataDir
+    locationTag = 'Documents (existing — kept)'
+  } else if (fs.existsSync(localDb)) {
+    dataDir = localDataDir
+    locationTag = 'LocalAppData (existing)'
+  } else {
+    dataDir = localDataDir
+    locationTag = 'LocalAppData (new install default)'
+  }
+
   const dbFile = path.join(dataDir, 'cashier.db')
   const marker = path.join(dataDir, '.appdata-migrated')
   const legacyAppDataDb = path.join(app.getPath('userData'), 'cashier.db')
   const legacyImsDb = path.join(app.getPath('appData'), 'IMS-Pro', 'cashier.db')
 
+  log(`[db] Documents folder : ${documentsDir}`)
+  log(`[db] OneDrive redirect: ${onedriveDocs ? 'YES — warn only (no auto-move)' : 'no'}`)
   log(`[db] live data dir  : ${dataDir}`)
+  log(`[db] location       : ${locationTag}`)
   log(`[db] database path  : ${dbFile}`)
-  log(`[db] backups folder : ${path.join(os.homedir(), 'Documents', 'CASR-Backups')}`)
-  log(`[db] canonical source: Documents\\CASR\\data (Setup + Portable share this)`)
+  log(`[db] backups folder : ${path.join(documentsDir, 'CASR-Backups')}`)
+
+  if (onedriveDocs && dataDir === docsDataDir) {
+    log(`[db] WARN: live DB is under OneDrive-synced Documents — SQLite may lock/corrupt`)
+    global.__casrOneDriveDbWarn = { documentsDir, dbFile }
+  }
 
   fs.mkdirSync(dataDir, { recursive: true })
 
-  // One-time AppData → Documents migration only (marker prevents stale re-copy).
+  const legacyProgramDataDb = path.join(
+    process.env.ProgramData || 'C:\\ProgramData',
+    'GalaxyCashier',
+    'data',
+    'cashier.db',
+  )
+
+  // One-time legacy import into the chosen dataDir only when empty.
   if (!fs.existsSync(dbFile)) {
     if (fs.existsSync(marker)) {
-      log(`[db] Documents DB missing but AppData migration already done once — will use seed (not AppData again)`)
+      log(`[db] DB missing but migration marker present — will use seed (not legacy again)`)
     } else {
-      const sources = [legacyAppDataDb, legacyImsDb].filter((p) => p && fs.existsSync(p))
+      const sources = [legacyAppDataDb, legacyImsDb, legacyProgramDataDb].filter(
+        (p) => p && fs.existsSync(p),
+      )
       for (const src of sources) {
         try {
           fs.copyFileSync(src, dbFile)
@@ -285,19 +356,19 @@ function initDatabase(res) {
               at: new Date().toISOString(),
               source: src,
               dest: dbFile,
-              note: 'One-time AppData → Documents migration. Will not repeat.',
+              note: 'One-time legacy import into live data dir.',
             }, null, 2),
             'utf8',
           )
-          log(`[db] ONE-TIME migrate AppData → Documents: ${src} → ${dbFile}`)
+          log(`[db] ONE-TIME migrate → ${dbFile}: from ${src}`)
           break
         } catch (e) {
-          log(`[db] Migration from AppData failed (${src}): ${e.message}`)
+          log(`[db] Migration failed (${src}): ${e.message}`)
         }
       }
     }
   } else {
-    log(`[db] Using existing Documents DB (no AppData migrate)`)
+    log(`[db] Using existing live DB at ${dbFile}`)
   }
 
   if (!fs.existsSync(dbFile)) {
@@ -315,9 +386,7 @@ function initDatabase(res) {
     log(`[db] Copied seed.db → ${dbFile}`)
   }
 
-  // Validate the DB is a real SQLite file (not zero-byte or corrupted)
   if (!validateSqliteFile(dbFile)) {
-    // Prefer restore hint: do not overwrite with empty seed if legacy exists
     log(`[db] Database appears corrupt — attempting recovery from seed.db`)
     const seedDb = path.join(res, 'seed.db')
     if (fs.existsSync(seedDb)) {
@@ -339,37 +408,311 @@ function initDatabase(res) {
     throw new Error(`Database not readable/writable: ${dbFile}\n${e.message}`)
   }
 
-  // Portable extracts under %TEMP%; its node+Prisma often cannot open SQLite under
-  // user profile paths with spaces (code 14) even via junction/8.3. Mirror the live
-  // DB to a space-free ProgramData path for Prisma, keep Documents as canonical copy.
-  let prismaFile = dbFile
-  if (process.platform === 'win32' && /\s/.test(dbFile)) {
-    const mirrorDir = path.join(process.env.ProgramData || 'C:\\ProgramData', 'GalaxyCashier', 'data')
-    const mirrorDb = path.join(mirrorDir, 'cashier.db')
-    try {
-      fs.mkdirSync(mirrorDir, { recursive: true })
-      const srcStat = fs.statSync(dbFile)
-      let needCopy = !fs.existsSync(mirrorDb)
-      if (!needCopy) {
-        const dstStat = fs.statSync(mirrorDb)
-        needCopy = srcStat.mtimeMs > dstStat.mtimeMs || srcStat.size !== dstStat.size
-      }
-      if (needCopy) {
-        fs.copyFileSync(dbFile, mirrorDb)
-        log(`[db] mirrored Documents → ProgramData (${srcStat.size} bytes)`)
-      }
-      prismaFile = mirrorDb
-      log(`[db] Prisma URL uses ProgramData mirror: ${prismaFile}`)
-    } catch (e) {
-      log(`[db] ProgramData mirror failed: ${e.message} — using Documents path`)
-    }
-  }
-  activeDbMirror = prismaFile !== dbFile ? prismaFile : null
+  // Prisma resolves file:./ relative to the engine/schema dir (NOT process.cwd) —
+  // so cwd-relative is unsafe. Use a space-free junction when the live path needs it.
+  const access = ensurePrismaJunctionAccess(dataDir, dbFile)
+  log(`[db] Prisma strategy: ${access.strategy} url=${access.url}`)
   return {
     dataDir,
     dbFile,
-    mirrorFile: activeDbMirror,
-    url: 'file:' + prismaFile.replace(/\\/g, '/'),
+    documentsDir,
+    onedriveDocs,
+    locationTag,
+    url: access.url,
+    apiCwd: null, // spawn API with its own apiDir cwd
+  }
+}
+
+/**
+ * Point Prisma at the live DB via absolute URL.
+ * If live path has spaces/non-ASCII: mklink /J from ProgramData\GalaxyCashier\live
+ * (space-free) → dataDir. Live bytes stay in dataDir; junction is access only.
+ */
+function ensurePrismaJunctionAccess(dataDir, dbFile) {
+  const needsLink = /\s/.test(dataDir) || /[^\x00-\x7F]/.test(dataDir) || /\s/.test(dbFile)
+  if (!needsLink) {
+    return {
+      strategy: 'absolute',
+      url: 'file:' + dbFile.replace(/\\/g, '/'),
+    }
+  }
+  const juncParent = path.join(process.env.ProgramData || 'C:\\ProgramData', 'GalaxyCashier')
+  const junc = path.join(juncParent, 'live')
+  try {
+    fs.mkdirSync(juncParent, { recursive: true })
+    // Restrict ACL: current user + Administrators only
+    try {
+      const user = process.env.USERNAME || os.userInfo().username
+      execSync(
+        `icacls "${juncParent}" /inheritance:r /grant:r "${user}:(OI)(CI)(F)" /grant:r "Administrators:(OI)(CI)(F)" /grant:r "SYSTEM:(OI)(CI)(F)"`,
+        { windowsHide: true, stdio: 'ignore' },
+      )
+    } catch (e) {
+      log(`[db] icacls on GalaxyCashier: ${e.message}`)
+    }
+    // Recreate junction if target differs
+    if (fs.existsSync(junc)) {
+      try {
+        const real = fs.realpathSync(junc)
+        if (real.toLowerCase() !== path.resolve(dataDir).toLowerCase()) {
+          execSync(`cmd /c rmdir "${junc}"`, { windowsHide: true })
+        }
+      } catch {
+        try {
+          execSync(`cmd /c rmdir "${junc}"`, { windowsHide: true })
+        } catch {
+          /* */
+        }
+      }
+    }
+    if (!fs.existsSync(junc)) {
+      execSync(`cmd /c mklink /J "${junc}" "${dataDir}"`, { windowsHide: true })
+      log(`[db] junction ${junc} → ${dataDir}`)
+    } else {
+      log(`[db] reusing junction ${junc}`)
+    }
+    const juncDb = path.join(junc, 'cashier.db')
+    if (!fs.existsSync(juncDb)) {
+      throw new Error(`junction missing cashier.db at ${juncDb}`)
+    }
+    return {
+      strategy: 'junction',
+      url: 'file:' + junc.replace(/\\/g, '/') + '/cashier.db',
+    }
+  } catch (e) {
+    log(`[db] junction failed (${e.message}) — trying absolute path anyway`)
+    return {
+      strategy: 'absolute-fallback',
+      url: 'file:' + dbFile.replace(/\\/g, '/'),
+    }
+  }
+}
+
+/**
+ * Win32 8.3 short path. Prefer Scripting.FileSystemObject (reliable with spaces);
+ * fall back to cmd %~sI. Returns original path if shortening fails.
+ */
+function winShortPath(absPath) {
+  if (process.platform !== 'win32' || !absPath) return absPath
+  if (!/\s/.test(absPath) && !/[^\x00-\x7F]/.test(absPath)) return absPath
+  // FileSystemObject needs an existing file or folder
+  try {
+    if (fs.existsSync(absPath)) {
+      const escaped = absPath.replace(/'/g, "''")
+      const isDir = fs.statSync(absPath).isDirectory()
+      const ps = isDir
+        ? `(New-Object -ComObject Scripting.FileSystemObject).GetFolder('${escaped}').ShortPath`
+        : `(New-Object -ComObject Scripting.FileSystemObject).GetFile('${escaped}').ShortPath`
+      const short = execSync(`powershell -NoProfile -Command "${ps}"`, {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 8000,
+      })
+        .trim()
+        .split(/\r?\n/)
+        .pop()
+      if (short && fs.existsSync(short)) return short
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    const short = execSync(`cmd /c for %I in ("${absPath}") do @echo %~sI`, {
+      encoding: 'utf8',
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)
+      .pop()
+    if (short && fs.existsSync(short)) return short
+  } catch {
+    /* keep original */
+  }
+  return absPath
+}
+
+/** App version + content hash of API server.js — drives LocalAppData runtime identity. */
+function computeApiRuntimeIdentity(apiDir) {
+  const version = (() => {
+    try {
+      return app.getVersion() || '0.0.0'
+    } catch {
+      return '0.0.0'
+    }
+  })()
+  const srcServer = path.join(apiDir, 'server.js')
+  let hash = 'missing'
+  try {
+    if (fs.existsSync(srcServer)) {
+      const buf = fs.readFileSync(srcServer)
+      hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 12)
+    }
+  } catch {
+    hash = 'error'
+  }
+  const id = `${version}-${hash}`
+  return { version, hash, id, srcServer }
+}
+
+/**
+ * Portable unpacks under %TEMP%; node+Prisma from TEMP cannot open the Documents
+ * DB (SQLite code 14). Copy API+node under LocalAppData\GalaxyCashier\runtime\<ver-hash>
+ * and re-sync whenever version or server.js hash changes. Live DB stays in user folder.
+ */
+function ensurePersistentApiRuntime(apiDir, nodeExe, prismaEngineLib) {
+  if (process.platform !== 'win32') {
+    return { apiDir, nodeExe, prismaEngineLib, identity: computeApiRuntimeIdentity(apiDir) }
+  }
+  const identity = computeApiRuntimeIdentity(apiDir)
+  const fromTemp = /\\Temp\\/i.test(apiDir) || /\\Temp\\/i.test(nodeExe)
+  if (!fromTemp) {
+    return {
+      apiDir: winShortPath(apiDir),
+      nodeExe: winShortPath(nodeExe),
+      prismaEngineLib: winShortPath(prismaEngineLib),
+      identity,
+    }
+  }
+
+  // Build under already-short LOCALAPPDATA so GalaxyCashier never sits on a spaced path.
+  const localApp = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
+  const localShort = winShortPath(localApp)
+  const runtimeBase = path.join(localShort, 'GalaxyCashier', 'runtime')
+  // Versioned slot: changing app version or server.js hash → new folder + fresh copy
+  const runtimeRoot = path.join(runtimeBase, identity.id)
+  const runtimeApi = path.join(runtimeRoot, 'api')
+  const runtimeNode = path.join(runtimeRoot, 'node', 'node.exe')
+  const engRel = path.join('node_modules', '.prisma', 'client', 'query_engine-windows.dll.node')
+  const runtimeEng = path.join(runtimeApi, engRel)
+  const marker = path.join(runtimeRoot, '.src-stamp.json')
+  const currentMarker = path.join(runtimeBase, 'current.json')
+  const srcEng = path.join(apiDir, engRel)
+  const stampObj = {
+    id: identity.id,
+    version: identity.version,
+    hash: identity.hash,
+    apiDir,
+    serverBytes: fs.existsSync(identity.srcServer) ? fs.statSync(identity.srcServer).size : 0,
+    engineBytes: fs.existsSync(srcEng) ? fs.statSync(srcEng).size : 0,
+    at: new Date().toISOString(),
+  }
+  const stamp = JSON.stringify(stampObj)
+
+  let needSync = true
+  try {
+    if (
+      fs.existsSync(marker) &&
+      fs.existsSync(runtimeNode) &&
+      fs.existsSync(path.join(runtimeApi, 'server.js')) &&
+      fs.existsSync(runtimeEng) &&
+      fs.statSync(runtimeEng).size > 1000
+    ) {
+      needSync = fs.readFileSync(marker, 'utf8') !== stamp
+    }
+  } catch {
+    needSync = true
+  }
+
+  if (needSync) {
+    log(
+      `[app] Syncing API runtime → ${runtimeRoot} (id=${identity.id}; Documents DB stays in user folder)`,
+    )
+    fs.mkdirSync(path.dirname(runtimeNode), { recursive: true })
+    fs.mkdirSync(runtimeApi, { recursive: true })
+    fs.copyFileSync(nodeExe, runtimeNode)
+    copyDirRecursive(apiDir, runtimeApi)
+    if (fs.existsSync(srcEng)) {
+      fs.mkdirSync(path.dirname(runtimeEng), { recursive: true })
+      fs.copyFileSync(srcEng, runtimeEng)
+    }
+    fs.writeFileSync(marker, stamp, 'utf8')
+    try {
+      fs.writeFileSync(currentMarker, stamp, 'utf8')
+    } catch {
+      /* */
+    }
+    // Prune old runtime slots (keep current + one previous)
+    try {
+      pruneOldRuntimes(runtimeBase, identity.id)
+    } catch (e) {
+      log(`[warn] runtime prune: ${e.message}`)
+    }
+  } else {
+    log(`[app] Reusing API runtime id=${identity.id}`)
+    try {
+      fs.writeFileSync(currentMarker, stamp, 'utf8')
+    } catch {
+      /* */
+    }
+  }
+
+  if (!fs.existsSync(runtimeEng) || fs.statSync(runtimeEng).size < 1000) {
+    log(`[warn] Runtime Prisma engine missing/small at ${runtimeEng}`)
+  }
+
+  const out = {
+    apiDir: winShortPath(runtimeApi),
+    nodeExe: winShortPath(runtimeNode),
+    prismaEngineLib: fs.existsSync(runtimeEng)
+      ? winShortPath(runtimeEng)
+      : winShortPath(prismaEngineLib),
+    identity,
+  }
+  log(`[app] API runtime ready id=${identity.id} node=${out.nodeExe}`)
+  log(`[app] API runtime cwd=${out.apiDir}`)
+  log(`[app] Prisma engine=${out.prismaEngineLib}`)
+  return out
+}
+
+function pruneOldRuntimes(runtimeBase, keepId) {
+  if (!fs.existsSync(runtimeBase)) return
+  const dirs = fs
+    .readdirSync(runtimeBase)
+    .filter((n) => {
+      const p = path.join(runtimeBase, n)
+      try {
+        return fs.statSync(p).isDirectory() && n !== keepId
+      } catch {
+        return false
+      }
+    })
+    .map((n) => {
+      const p = path.join(runtimeBase, n)
+      return { n, p, m: fs.statSync(p).mtimeMs }
+    })
+    .sort((a, b) => b.m - a.m)
+  // Keep one previous slot for rollback; delete the rest
+  for (const d of dirs.slice(1)) {
+    try {
+      fs.rmSync(d.p, { recursive: true, force: true })
+      log(`[app] pruned old runtime slot ${d.n}`)
+    } catch {
+      /* busy */
+    }
+  }
+}
+
+function copyDirRecursive(src, dest) {
+  fs.mkdirSync(dest, { recursive: true })
+  for (const name of fs.readdirSync(src)) {
+    // Skip Prisma temp leftovers from failed prior extracts
+    if (name.endsWith('.tmp') || /\.node\.tmp/i.test(name)) continue
+    const s = path.join(src, name)
+    const d = path.join(dest, name)
+    let st
+    try {
+      st = fs.statSync(s)
+    } catch {
+      continue
+    }
+    if (st.isDirectory()) copyDirRecursive(s, d)
+    else {
+      try {
+        fs.copyFileSync(s, d)
+      } catch (e) {
+        log(`[warn] copy skip ${s}: ${e.message}`)
+      }
+    }
   }
 }
 
@@ -435,7 +778,7 @@ async function startServers() {
   log(`[app] Port check after cleanup — api=${apiRunning}  web=${webRunning}`)
 
   const dbInfo = initDatabase(res)
-  log(`[app] DATABASE_URL: ${dbInfo.url}`)
+  log(`[app] DATABASE_URL: ${dbInfo.url} (live file: ${dbInfo.dbFile})`)
 
   // Automatic backups: API scheduler (see autoBackup.scheduler.ts)
 
@@ -452,21 +795,25 @@ async function startServers() {
   }
   const finalRefresh = process.env.JWT_REFRESH_SECRET || (finalJwt + '-refresh')
 
+  const runtime = ensurePersistentApiRuntime(apiDir, nodeExe, prismaEngineLib)
   if (!apiRunning) {
-    log(`[app] Spawning API: ${nodeExe} server.js in ${apiDir}`)
-    spawnServer(nodeExe, ['server.js'], apiDir, {
+    log(`[app] Spawning API: ${runtime.nodeExe} server.js in ${runtime.apiDir}`)
+    spawnServer(runtime.nodeExe, ['server.js'], runtime.apiDir, {
       DATABASE_URL:                dbInfo.url,
-      PRISMA_QUERY_ENGINE_LIBRARY: prismaEngineLib,
+      PRISMA_QUERY_ENGINE_LIBRARY: runtime.prismaEngineLib,
       JWT_SECRET:                  finalJwt,
       JWT_REFRESH_SECRET:          finalRefresh,
       PORT:                        String(API_PORT),
       NODE_ENV:                    'production',
-      // UI may load via localhost or 127.0.0.1 — allow both for CORS
       CORS_ORIGIN:                 `http://localhost:${WEB_PORT},http://127.0.0.1:${WEB_PORT}`,
-      // Local HTTP desktop — refresh cookie must not require HTTPS
       COOKIE_SECURE:               'false',
       DESKTOP_MODE:                '1',
-    })
+      GALAXY_APP_VERSION:          runtime.identity?.version || app.getVersion(),
+      GALAXY_API_BUILD:            runtime.identity?.hash || '',
+      GALAXY_RUNTIME_ID:           runtime.identity?.id || '',
+      CASR_DOCUMENTS_DIR:          dbInfo.documentsDir,
+      CASR_DATA_DIR:               dbInfo.dataDir,
+    }, 'api')
   } else {
     log(`[app] API already on :${API_PORT}`)
   }
@@ -594,6 +941,30 @@ if (gotLock) {
       await waitForApiHealth(5, 2000)
 
       await createMainWindow(pendingRoute)
+
+      // OneDrive Documents: warn only — no auto-move of live DB
+      if (global.__casrOneDriveDbWarn) {
+        const w = global.__casrOneDriveDbWarn
+        global.__casrOneDriveDbWarn = null
+        try {
+          await dialog.showMessageBox(mainWindow || undefined, {
+            type: 'warning',
+            title: 'Galaxy Cashier — تحذير OneDrive',
+            message: 'مجلد Documents يبدو أنه داخل OneDrive',
+            detail:
+              `مسار قاعدة البيانات الحالية:\n${w.dbFile}\n\n` +
+              `قواعد SQLite على مجلدات مزامنة (OneDrive) قد تتعطل أو تتلف.\n\n` +
+              `التثبيتات الجديدة تضع الـ DB في LocalAppData (خارج OneDrive).\n` +
+              `النسخ الاحتياطية تبقى في Documents\\CASR-Backups.\n` +
+              `لن يتم نقل قاعدة البيانات الحالية تلقائياً.`,
+            buttons: ['حسناً'],
+            defaultId: 0,
+            noLink: true,
+          })
+        } catch (e) {
+          log(`[db] OneDrive warn dialog failed: ${e.message}`)
+        }
+      }
     } catch (err) {
       log(`[app] FATAL: ${err.message}`)
       if (err.stack) log(err.stack)
@@ -663,28 +1034,13 @@ function tryCopyExitBackup(dbFile, directory, fileName) {
   }
 }
 
-/** When ProgramData mirror is used (spaces in username), sync it back to Documents on exit. */
-let activeDbMirror = null
-
-function syncMirrorToDocuments() {
-  if (!activeDbMirror || !fs.existsSync(activeDbMirror)) return
-  const docs = path.join(os.homedir(), 'Documents', 'CASR', 'data', 'cashier.db')
-  try {
-    fs.mkdirSync(path.dirname(docs), { recursive: true })
-    fs.copyFileSync(activeDbMirror, docs)
-    log(`[db] synced ProgramData mirror → Documents`)
-  } catch (e) {
-    log(`[db] mirror sync failed: ${e.message}`)
-  }
-}
-
 function performExitBackup() {
-  syncMirrorToDocuments()
   const cfg = readExitBackupConfig()
   if (!cfg.onExit) {
     log('[backup] Exit backup skipped (disabled in settings)')
     return
   }
+  // Always backup the Documents live DB (single source of truth).
   const dbFile = path.join(os.homedir(), 'Documents', 'CASR', 'data', 'cashier.db')
   if (!fs.existsSync(dbFile)) {
     log('[backup] Exit backup skipped — no live DB')

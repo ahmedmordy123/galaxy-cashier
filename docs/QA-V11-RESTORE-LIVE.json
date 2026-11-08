@@ -1,0 +1,62 @@
+{
+  "at": "2026-11-08T15:12:01.848Z",
+  "restoreName": "cashier-backup-2026-11-08T15-12-01.db",
+  "beforeTax": "14",
+  "midTax": "99",
+  "afterTax": "14",
+  "dbUrl": "file:C:/ProgramData/GalaxyCashier/restore-qa-live/cashier.db",
+  "passed": 10,
+  "total": 10,
+  "results": [
+    {
+      "name": "API health with cwd-relative DB",
+      "ok": true,
+      "detail": " scheduler started (checks every 5 min) {\"timestamp\":\"2026-11-08T15:12:00.529Z\"}\r\n\u001b[32minfo\u001b[39m: [eta] Submission scheduler started (every 60s when enabled) {\"timestamp\":\"2026-11-08T15:12:00.529Z\"}\r\n"
+    },
+    {
+      "name": "login",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "read settings before backup",
+      "ok": true,
+      "detail": "tax_rate=14"
+    },
+    {
+      "name": "create backup",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":{\"path\":\"C:\\\\Users\\\\NOURSO~1\\\\AppData\\\\Local\\\\Temp\\\\casr-restore-1794150720180\\\\backups\\\\cashier-backup-2026-11-08T15-12-01.db\",\"name\":\"cashier-backup-2026-1"
+    },
+    {
+      "name": "backup fileName present",
+      "ok": true,
+      "detail": "cashier-backup-2026-11-08T15-12-01.db"
+    },
+    {
+      "name": "mutate tax_rate after backup",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "mutated value visible",
+      "ok": true,
+      "detail": "99"
+    },
+    {
+      "name": "restore API ok",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":{\"restoredFrom\":\"C:\\\\Users\\\\NOURSO~1\\\\AppData\\\\Local\\\\Temp\\\\casr-restore-1794150720180\\\\backups\\\\cashier-backup-2026-11-08T15-12-01.db\",\"safetyBackup\":\"C:\\\\Users\\\\NOURSO~1\\\\AppData\\\\Local\\\\Temp\\\\casr-restore-179415072"
+    },
+    {
+      "name": "post-restore tax_rate restored (no process restart)",
+      "ok": true,
+      "detail": "after=14 marker=99 before=14"
+    },
+    {
+      "name": "PRAGMA integrity_check == ok",
+      "ok": true,
+      "detail": "ok"
+    }
+  ]
+}

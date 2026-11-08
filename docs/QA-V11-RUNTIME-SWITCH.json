@@ -1,0 +1,85 @@
+{
+  "at": "2026-11-08T14:54:28.768Z",
+  "phase1": {
+    "at": "2026-11-08T14:50:01.068Z",
+    "phase": 1,
+    "exe": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe",
+    "healthOk": true,
+    "health": {
+      "status": "ok",
+      "timestamp": "2026-11-08T14:50:01.054Z",
+      "version": "1.1.0",
+      "build": "d9e0738bbca2",
+      "runtimeId": "1.1.0-d9e0738bbca2"
+    },
+    "slots": [
+      "1.1.0-d9e0738bbca2"
+    ],
+    "current": {
+      "id": "1.1.0-d9e0738bbca2",
+      "version": "1.1.0",
+      "hash": "d9e0738bbca2",
+      "apiDir": "C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\3LpS9E248Y63Jlfe0X52AyCiJ9O\\resources\\api",
+      "serverBytes": 4308346,
+      "engineBytes": 19261952,
+      "at": "2026-11-08T14:50:00.055Z"
+    }
+  },
+  "phase2": {
+    "exe": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.1.exe",
+    "health": {
+      "status": "ok",
+      "timestamp": "2026-11-08T14:54:28.753Z",
+      "version": "1.1.1",
+      "build": "53f370e02e32",
+      "runtimeId": "1.1.1-53f370e02e32"
+    },
+    "slots": [
+      "1.1.0-d9e0738bbca2",
+      "1.1.1-53f370e02e32"
+    ],
+    "current": {
+      "id": "1.1.1-53f370e02e32",
+      "version": "1.1.1",
+      "hash": "53f370e02e32",
+      "apiDir": "C:\\Users\\NOURSO~1\\AppData\\Local\\Temp\\3LpShH7FTBciK4slQ8bW2obEQ0P\\resources\\api",
+      "serverBytes": 4308383,
+      "engineBytes": 19261952,
+      "at": "2026-11-08T14:54:27.818Z"
+    }
+  },
+  "checks": [
+    {
+      "name": "phase2 health",
+      "ok": true,
+      "detail": "26284ms"
+    },
+    {
+      "name": "version changed or build hash changed",
+      "ok": true,
+      "detail": "prev=1.1.0/d9e0738bbca2 → now=1.1.1/53f370e02e32"
+    },
+    {
+      "name": "expected version",
+      "ok": true,
+      "detail": "1.1.1"
+    },
+    {
+      "name": "runtimeId changed",
+      "ok": true,
+      "detail": "prev=1.1.0-d9e0738bbca2 → now=1.1.1-53f370e02e32"
+    },
+    {
+      "name": "new runtime slot folder exists",
+      "ok": true,
+      "detail": "1.1.0-d9e0738bbca2, 1.1.1-53f370e02e32"
+    },
+    {
+      "name": "current.json matches new id",
+      "ok": true,
+      "detail": "{\"id\":\"1.1.1-53f370e02e32\",\"version\":\"1.1.1\",\"hash\":\"53f370e02e32\",\"apiDir\":\"C:\\\\Users\\\\NOURSO~1\\\\AppData\\\\Local\\\\Temp\\\\3LpShH7FTBciK4slQ8bW2obEQ0P\\\\resources\\\\api\",\"serverBytes\":4308383,\"engineBytes\":19261952,\"at\":\"2026-11-08T14:54:27.818Z\"}"
+    }
+  ],
+  "passed": 6,
+  "total": 6
+}

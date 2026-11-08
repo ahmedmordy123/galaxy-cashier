@@ -9,8 +9,15 @@ export const salesService = {
     api.post('/api/sales', data).then((r) => r.data),
   update: (id: string, data: Record<string, unknown>) =>
     api.patch(`/api/sales/${id}`, data).then((r) => r.data),
-  confirm: (id: string, data?: { amountPaid?: number; payments?: Array<{ method: string; amount: number }>; updatedAt?: string }) =>
-    api.post(`/api/sales/${id}/confirm`, data ?? {}).then((r) => r.data),
+  confirm: (
+    id: string,
+    data?: {
+      amountPaid?: number
+      payments?: Array<{ method: string; amount: number }>
+      updatedAt?: string
+      ackTaxPolicyChange?: boolean
+    },
+  ) => api.post(`/api/sales/${id}/confirm`, data ?? {}).then((r) => r.data),
   park: (id: string) =>
     api.post(`/api/sales/${id}/park`).then((r) => r.data),
   listParked: () =>

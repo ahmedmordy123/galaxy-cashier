@@ -6,6 +6,7 @@ import { salesService } from '@/services/sales.service'
 import api from '@/lib/api'
 import { formatMoney, formatNumber } from '@/lib/currency'
 import { formatDateTime } from '@/lib/dates'
+import { isTaxPolicyChangedError, promptTaxPolicyChange } from '@/lib/taxPolicyConfirm'
 
 type EtaDocStatus = 'PENDING' | 'SUBMITTED' | 'RETRY' | 'REJECTED'
 
@@ -116,7 +117,7 @@ export default function SalesInvoiceDetailPage() {
 
   useEffect(() => { load() }, [load])
 
-  async function doConfirm(amountPaid?: number) {
+  async function doConfirm(amountPaid?: number, ackTaxPolicyChange = false) {
     setShowPayModal(false)
     setActionLoading(true)
     setActionError('')
@@ -133,9 +134,25 @@ export default function SalesInvoiceDetailPage() {
       await salesService.confirm(id, {
         amountPaid: inv.type === 'CASH' ? (amountPaid ?? total) : 0,
         payments,
+        ...(ackTaxPolicyChange ? { ackTaxPolicyChange: true } : {}),
       })
       await load()
     } catch (err: unknown) {
+      const taxChange = isTaxPolicyChangedError(err)
+      if (taxChange && !ackTaxPolicyChange) {
+        setActionLoading(false)
+        if (promptTaxPolicyChange(taxChange.details)) {
+          const nextTotal = Number(taxChange.details.next.total)
+          const nextPaid =
+            invoice?.type === 'CASH' ? (amountPaid != null ? amountPaid : nextTotal) : amountPaid
+          await doConfirm(nextPaid, true)
+          return
+        }
+        setActionError(
+          `تم إلغاء التأكيد — الإجمالي كان سيتغيّر من ${Number(taxChange.details.previous.total).toFixed(2)} إلى ${Number(taxChange.details.next.total).toFixed(2)}`,
+        )
+        return
+      }
       const axiosErr = err as { response?: { data?: { error?: string } } }
       setActionError(axiosErr.response?.data?.error ?? 'فشل في تأكيد الفاتورة')
     } finally {

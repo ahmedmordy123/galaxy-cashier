@@ -12,6 +12,7 @@ import { CameraScanner } from '@/components/barcode/CameraScanner'
 import { QuickAddItemModal, type ScannedItem } from '@/components/barcode/QuickAddItemModal'
 import { CURRENCY_CODE, formatMoney, formatNumber } from '@/lib/currency'
 import { computeInvoiceTotals, type DiscountType, type TaxMode } from '@/lib/salesTotals'
+import { isTaxPolicyChangedError, promptTaxPolicyChange } from '@/lib/taxPolicyConfirm'
 
 type PriceType = 'RETAIL' | 'WHOLESALE' | 'SPECIAL'
 type PaymentType = 'CASH' | 'CREDIT'
@@ -656,7 +657,11 @@ export default function NewSalesInvoicePage() {
     return createQuickCustomer(name, newCustomerPhone)
   }
 
-  async function saveInvoice(status: 'draft' | 'park' | 'confirm', amountPaid?: number) {
+  async function saveInvoice(
+    status: 'draft' | 'park' | 'confirm',
+    amountPaid?: number,
+    ackTaxPolicyChange = false,
+  ) {
     if (lines.length === 0) { setSubmitError('أضف صنفاً واحداً على الأقل'); return }
     if (status === 'confirm') {
       const serialErr = validateSerialLines()
@@ -667,6 +672,8 @@ export default function NewSalesInvoicePage() {
       return
     }
     setLoading(true); setSubmitError(''); setCustomerAddError('')
+    let pendingConfirmId: string | null = null
+    let pendingVersion: string | null = null
     try {
       let activeCustomerId: string | null = customerId
       if (!activeCustomerId && customerSearch.trim()) {
@@ -683,7 +690,7 @@ export default function NewSalesInvoicePage() {
       if (invoiceId) {
         const updateBody = versionToken ? { ...payload, updatedAt: versionToken } : payload
         const updated = await salesService.update(invoiceId, updateBody)
-        const inv = updated.data as { updatedAt?: string }
+        const inv = updated.data as { updatedAt?: string; total?: number }
         if (inv?.updatedAt) versionToken = inv.updatedAt
       } else {
         const created = await salesService.create(payload)
@@ -714,31 +721,62 @@ export default function NewSalesInvoicePage() {
         barcodeRef.current?.focus()
         return
       }
-      const payments: Array<{ method: string; amount: number }> = []
-      if (paymentType === 'CREDIT') {
-        payments.push({ method: 'CREDIT', amount: total })
-      } else {
-        const card = Number(cardAmount) || 0
-        const wallet = Number(walletAmount) || 0
-        const cash = Math.max(0, (amountPaid ?? total) - card - wallet)
-        if (cash > 0) payments.push({ method: 'CASH', amount: cash })
-        if (card > 0) payments.push({ method: 'CARD', amount: card })
-        if (wallet > 0) payments.push({ method: 'WALLET', amount: wallet })
-        if (payments.length === 0) payments.push({ method: 'CASH', amount: amountPaid ?? total })
+      pendingConfirmId = invoiceId
+      pendingVersion = versionToken
+      if (versionToken) setEditingInvoiceUpdatedAt(versionToken)
+
+      const confirmWithTotal = async (payTotal: number, ack: boolean) => {
+        const payments: Array<{ method: string; amount: number }> = []
+        if (paymentType === 'CREDIT') {
+          payments.push({ method: 'CREDIT', amount: payTotal })
+        } else {
+          const card = Number(cardAmount) || 0
+          const wallet = Number(walletAmount) || 0
+          const cash = Math.max(0, (amountPaid ?? payTotal) - card - wallet)
+          if (cash > 0) payments.push({ method: 'CASH', amount: cash })
+          if (card > 0) payments.push({ method: 'CARD', amount: card })
+          if (wallet > 0) payments.push({ method: 'WALLET', amount: wallet })
+          if (payments.length === 0) payments.push({ method: 'CASH', amount: amountPaid ?? payTotal })
+        }
+        await salesService.confirm(invoiceId!, {
+          amountPaid: paymentType === 'CASH' ? (amountPaid ?? payTotal) : 0,
+          payments,
+          ...(versionToken ? { updatedAt: versionToken } : {}),
+          ...(ack ? { ackTaxPolicyChange: true } : {}),
+        })
+        router.push(`/sales/${invoiceId}`)
       }
-      await salesService.confirm(invoiceId, {
-        amountPaid: paymentType === 'CASH' ? (amountPaid ?? total) : 0,
-        payments,
-        ...(versionToken ? { updatedAt: versionToken } : {}),
-      })
-      router.push(`/sales/${invoiceId}`)
+
+      try {
+        await confirmWithTotal(total, ackTaxPolicyChange)
+      } catch (confirmErr: unknown) {
+        const taxChange = isTaxPolicyChangedError(confirmErr)
+        if (taxChange && !ackTaxPolicyChange && promptTaxPolicyChange(taxChange.details)) {
+          const nextTotal = Number(taxChange.details.next.total)
+          await confirmWithTotal(nextTotal, true)
+          return
+        }
+        if (taxChange && !ackTaxPolicyChange) {
+          setSubmitError(
+            `تم إلغاء التأكيد — الإجمالي كان سيتغيّر من ${Number(taxChange.details.previous.total).toFixed(2)} إلى ${Number(taxChange.details.next.total).toFixed(2)}`,
+          )
+          return
+        }
+        throw confirmErr
+      }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number; data?: { error?: string } } }
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string; code?: string } } }
       const msg = axiosErr.response?.data?.error ?? (err instanceof Error ? err.message : 'فشل في حفظ الفاتورة')
       setSubmitError(msg)
-      if (axiosErr.response?.status === 409 && editingInvoiceId) {
+      if (
+        axiosErr.response?.status === 409 &&
+        (editingInvoiceId || pendingConfirmId) &&
+        axiosErr.response?.data?.code !== 'TAX_POLICY_CHANGED'
+      ) {
         setSubmitError(`${msg} — جاري إعادة التحميل…`)
-        router.replace(`/sales/new?resumeId=${editingInvoiceId}`)
+        router.replace(`/sales/new?resumeId=${editingInvoiceId || pendingConfirmId}`)
+      } else if (pendingVersion) {
+        setEditingInvoiceUpdatedAt(pendingVersion)
       }
     } finally { setLoading(false) }
   }

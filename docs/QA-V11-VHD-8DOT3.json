@@ -1,0 +1,6 @@
+﻿{
+    "status":  "blocked_no_elevation",
+    "related":  "docs/QA-V11-PATH-SOLUTIONS.json chosen=junction",
+    "note":  "diskpart/New-VHD/fsutil 8dot3name set require Administrator. UAC elevation was not granted in this session (Medium IL). Junction strategy validated on C: with Arabic+space paths; cwd-relative proven FALSE POSITIVE (Prisma resolves file:./ next to engine).",
+    "at":  "2026-11-08T17:12:20.0787646+02:00"
+}

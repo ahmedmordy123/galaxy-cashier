@@ -1,0 +1,41 @@
+{
+  "at": "2026-11-08T15:11:52.427Z",
+  "chosen": "junction",
+  "okA": false,
+  "okB": true,
+  "okC": true,
+  "passed": 5,
+  "total": 6,
+  "results": [
+    {
+      "name": "source db",
+      "ok": true,
+      "detail": "C:\\Users\\Nour Soft\\Documents\\CASR\\data\\cashier.db"
+    },
+    {
+      "name": "A cwd-relative file:./cashier.db (strict)",
+      "ok": false,
+      "detail": "url=file:./cashier.db tables=ENGINE_DB_EXISTS true E:\\CASR\\apps\\desktop\\staging\\api\\node_modules\\.prisma\\clie engineSidecar=true liveId 630784:1794148321463.7415→630784:1794148321463.7415 | TABLES \nENGINE_DB_EXISTS true E:\\CASR\\apps\\desktop\\staging\\api\\node_modules\\.prisma\\client\\cashier.db"
+    },
+    {
+      "name": "B junction created",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\live-junc-qa"
+    },
+    {
+      "name": "B junction absolute URL",
+      "ok": true,
+      "detail": "url=file:C:/ProgramData/GalaxyCashier/live-junc-qa/cashier.db tables=AuditLog,CashStatement,CashierShift,Category,Customer,EtaDocument,ExchangeRateHi engineSidecar=false liveId 630784:1794148321463.7415→630784:1794148321463.7415 | TABLES AuditLog,CashStatement,CashierShift,Category,Customer,EtaDocument,ExchangeRateHistory,Expense,ExpenseCategory,Ite"
+    },
+    {
+      "name": "C absolute spaced path",
+      "ok": true,
+      "detail": "url=file:C:/Users/NOURSO~1/AppData/Local/Temp/casr-path-sol-1794150711959/User Name (Test) & Co/بيانات-عربية/cashier.db tables=AuditLog,CashStatement,CashierShift,Category,Customer,EtaDocument,ExchangeRateHi engineSidecar=false liveId 630784:1794148321463.7415→630784:1794148321463.7415 | TABLES AuditLog,CashStatement,CashierShift,Category,Customer,EtaDocument,ExchangeRateHistory,Expense,ExpenseCategory,Ite"
+    },
+    {
+      "name": "chosen strategy",
+      "ok": true,
+      "detail": "junction"
+    }
+  ]
+}

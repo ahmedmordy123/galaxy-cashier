@@ -62,11 +62,20 @@ app.use(rateLimit({
   message: 'Too many requests from this IP',
 }))
 
+function healthPayload() {
+  return {
+    status: 'ok' as const,
+    timestamp: new Date().toISOString(),
+    version: process.env.GALAXY_APP_VERSION || null,
+    build: process.env.GALAXY_API_BUILD || null,
+    runtimeId: process.env.GALAXY_RUNTIME_ID || null,
+  }
+}
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  res.json(healthPayload())
 })
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  res.json(healthPayload())
 })
 
 app.use('/api/auth', authRouter)

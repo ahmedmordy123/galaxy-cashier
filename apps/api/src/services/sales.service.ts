@@ -7,18 +7,50 @@ import {
   computeInvoiceTotals,
   computeInclusiveInvoiceTotals,
   parseDiscountType,
+  parseTaxMode,
   proportionalReturnShare,
   proportionalReturnTotalInclusive,
   roundMoney,
   safeDecimal,
   type DiscountType,
+  type TaxMode,
 } from '../utils/salesTotals'
 import {
   assertCanEditPrice,
   catalogUnitPrice,
   getTaxPolicySnapshot,
   userMayEditPrice,
+  type TaxPolicySnapshot,
 } from './salesPolicy.service'
+
+export type TaxPolicyChangeDetails = {
+  previous: {
+    total: number
+    tax: number
+    netOfTax: number
+    taxEnabled: boolean
+    taxMode: TaxMode
+    taxRate: number
+  }
+  next: {
+    total: number
+    tax: number
+    netOfTax: number
+    taxEnabled: boolean
+    taxMode: TaxMode
+    taxRate: number
+  }
+}
+
+export class TaxPolicyChangedError extends Error {
+  statusCode = 409
+  code = 'TAX_POLICY_CHANGED' as const
+  details: TaxPolicyChangeDetails
+  constructor(details: TaxPolicyChangeDetails) {
+    super('TAX_POLICY_CHANGED')
+    this.details = details
+  }
+}
 
 async function getTaxPct(): Promise<Decimal> {
   const policy = await getTaxPolicySnapshot()
@@ -413,13 +445,16 @@ function buildSalesLineData(
   })
 }
 
-async function computeSalesTotals(data: CreateSalesInvoiceInput, lineData: ReturnType<typeof buildSalesLineData>) {
+function totalsFromPolicy(
+  data: CreateSalesInvoiceInput,
+  lineData: Array<{ subtotal: Decimal; taxExempt: boolean }>,
+  policy: Pick<TaxPolicySnapshot, 'vatEnabled' | 'taxMode' | 'taxPct'>,
+) {
   const { discountType, discountValue } = invoiceDiscountMeta(data)
   const subtotal = lineData.reduce((acc, l) => acc.plus(l.subtotal), new Decimal(0))
   const taxableSubtotal = lineData
     .filter((l) => !l.taxExempt)
     .reduce((acc, l) => acc.plus(l.subtotal), new Decimal(0))
-  const policy = await getTaxPolicySnapshot()
   const totals = computeInvoiceTotals({
     linesSubtotal: subtotal,
     taxableLinesSubtotal: taxableSubtotal,
@@ -441,6 +476,34 @@ async function computeSalesTotals(data: CreateSalesInvoiceInput, lineData: Retur
     taxRate: policy.vatEnabled ? policy.taxPct : new Decimal(0),
     policy,
   }
+}
+
+async function computeSalesTotals(data: CreateSalesInvoiceInput, lineData: ReturnType<typeof buildSalesLineData>) {
+  const policy = await getTaxPolicySnapshot()
+  return totalsFromPolicy(data, lineData, policy)
+}
+
+/** Keep DRAFT tax snapshot on edit — live settings are applied only on confirm (with ack). */
+function invoiceTaxSnapshotPolicy(invoice: {
+  taxEnabled?: boolean | null
+  taxMode?: string | null
+  taxRate?: unknown
+}): Pick<TaxPolicySnapshot, 'vatEnabled' | 'taxMode' | 'taxPct'> {
+  const taxPct = safeDecimal(invoice.taxRate)
+  const taxEnabled = invoice.taxEnabled !== false && taxPct.gt(0)
+  return {
+    vatEnabled: taxEnabled,
+    taxMode: parseTaxMode(invoice.taxMode),
+    taxPct: taxEnabled ? taxPct : new Decimal(0),
+  }
+}
+
+function invoiceLinesTaxableMeta(items: Array<{ subtotal: unknown; taxExempt?: boolean | null }>) {
+  const subtotal = items.reduce((acc, l) => acc.plus(safeDecimal(l.subtotal)), new Decimal(0))
+  const taxableSubtotal = items
+    .filter((l) => !l.taxExempt)
+    .reduce((acc, l) => acc.plus(safeDecimal(l.subtotal)), new Decimal(0))
+  return { subtotal, taxableSubtotal }
 }
 
 export async function updateSalesInvoice(
@@ -477,13 +540,14 @@ export async function updateSalesInvoice(
       ? actor.role === 'ADMIN' || actor.role === 'MANAGER' || Boolean(actor.canEditPrice)
       : await userMayEditPrice(userId)
   const lineData = buildSalesLineData(data, itemMap, mayEdit, actor)
-  const totals = await computeSalesTotals(data, lineData)
-  const { subtotal, discountType, discountValue, tax, total, netOfTax, taxMode, taxEnabled, taxRate, policy } =
-    totals
+  const livePolicy = await getTaxPolicySnapshot()
+  const snapPolicy = invoiceTaxSnapshotPolicy(invoice)
+  const totals = totalsFromPolicy(data, lineData, snapPolicy)
+  const { subtotal, discountType, discountValue, tax, total, netOfTax, taxMode, taxEnabled, taxRate } = totals
 
   const belowCostLines = lineData.filter((l) => l.unitCost.gt(0) && l.unitPrice.lt(l.unitCost))
   if (belowCostLines.length > 0) {
-    if (policy.belowCostPolicy === 'BLOCK') {
+    if (livePolicy.belowCostPolicy === 'BLOCK') {
       const err = new Error('BELOW_COST_BLOCKED') as Error & { statusCode: number }
       err.statusCode = 400
       throw err
@@ -589,6 +653,7 @@ export async function confirmInvoice(
   amountPaid?: number,
   payments?: Array<{ method: string; amount: number }>,
   expectedUpdatedAt?: string,
+  opts?: { ackTaxPolicyChange?: boolean },
 ) {
   const invoice = await prisma.salesInvoice.findFirst({
     where: { id: invoiceId, isActive: true },
@@ -603,8 +668,59 @@ export async function confirmInvoice(
   }
   assertInvoiceVersion(invoice, expectedUpdatedAt)
 
+  // Live tax policy vs DRAFT snapshot — warn cashier before total changes
+  const livePolicy = await getTaxPolicySnapshot()
+  const snapPolicy = invoiceTaxSnapshotPolicy(invoice)
+  const discountType = parseDiscountType((invoice as { discountType?: string }).discountType)
+  const discountValue = safeDecimal(invoice.discount)
+  const { subtotal: linesSub, taxableSubtotal } = invoiceLinesTaxableMeta(invoice.items)
+  const liveTotals = computeInvoiceTotals({
+    linesSubtotal: linesSub,
+    taxableLinesSubtotal: taxableSubtotal,
+    discountType,
+    discountValue,
+    taxPct: livePolicy.taxPct,
+    taxMode: livePolicy.taxMode,
+    taxEnabled: livePolicy.vatEnabled,
+  })
+  const prevTotal = roundMoney(safeDecimal(invoice.total))
+  const prevTax = roundMoney(safeDecimal(invoice.tax))
+  const prevNet = roundMoney(safeDecimal((invoice as { netOfTax?: unknown }).netOfTax ?? invoice.total))
+  const policyDiverged =
+    snapPolicy.vatEnabled !== (livePolicy.vatEnabled && livePolicy.taxPct.gt(0)) ||
+    snapPolicy.taxMode !== livePolicy.taxMode ||
+    !snapPolicy.taxPct.eq(livePolicy.vatEnabled ? livePolicy.taxPct : new Decimal(0)) ||
+    !prevTotal.eq(liveTotals.total)
+
+  if (policyDiverged && !opts?.ackTaxPolicyChange) {
+    throw new TaxPolicyChangedError({
+      previous: {
+        total: Number(prevTotal),
+        tax: Number(prevTax),
+        netOfTax: Number(prevNet),
+        taxEnabled: snapPolicy.vatEnabled,
+        taxMode: snapPolicy.taxMode,
+        taxRate: Number(snapPolicy.taxPct),
+      },
+      next: {
+        total: Number(liveTotals.total),
+        tax: Number(liveTotals.tax),
+        netOfTax: Number(liveTotals.netOfTax),
+        taxEnabled: liveTotals.taxEnabled,
+        taxMode: liveTotals.taxMode,
+        taxRate: Number(livePolicy.vatEnabled ? livePolicy.taxPct : new Decimal(0)),
+      },
+    })
+  }
+
+  const applyLiveTax = policyDiverged && Boolean(opts?.ackTaxPolicyChange)
+  const workingTotal = applyLiveTax ? liveTotals.total : prevTotal
+  if (applyLiveTax) {
+    ;(invoice as { total: Decimal }).total = liveTotals.total as unknown as typeof invoice.total
+  }
+
   if (invoice.type === 'CREDIT' && invoice.customerId) {
-    await assertCreditAllowed(invoice.customerId, new Decimal(invoice.total.toString()))
+    await assertCreditAllowed(invoice.customerId, workingTotal)
   }
 
   let nextShiftId = invoice.shiftId
@@ -629,13 +745,42 @@ export async function confirmInvoice(
     }
     if (expectedUpdatedAt) claimWhere.updatedAt = new Date(expectedUpdatedAt)
 
+    const claimData: Prisma.SalesInvoiceUpdateManyMutationInput = {
+      status: 'CONFIRMED',
+      shiftId: nextShiftId,
+    }
+    if (applyLiveTax) {
+      claimData.tax = liveTotals.tax
+      claimData.taxEnabled = liveTotals.taxEnabled
+      claimData.taxMode = liveTotals.taxMode
+      claimData.taxRate = livePolicy.vatEnabled ? livePolicy.taxPct : new Decimal(0)
+      claimData.netOfTax = liveTotals.netOfTax
+      claimData.total = liveTotals.total
+      claimData.balance = liveTotals.total
+    }
+
     const claimed = await tx.salesInvoice.updateMany({
       where: claimWhere,
-      data: { status: 'CONFIRMED', shiftId: nextShiftId },
+      data: claimData,
     })
     if (claimed.count !== 1) {
       if (expectedUpdatedAt) throw invoiceConflictError()
       throw new Error('INVOICE_ALREADY_CONFIRMED')
+    }
+
+    if (applyLiveTax) {
+      await logAudit(tx, {
+        userId,
+        action: 'TAX_POLICY_ACK_ON_CONFIRM',
+        entityType: 'SalesInvoice',
+        entityId: invoiceId,
+        details: {
+          previousTotal: Number(prevTotal),
+          nextTotal: Number(liveTotals.total),
+          previousTax: Number(prevTax),
+          nextTax: Number(liveTotals.tax),
+        },
+      })
     }
 
     for (const line of invoice.items) {

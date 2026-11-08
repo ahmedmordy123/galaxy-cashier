@@ -1,7 +1,7 @@
 {
-  "at": "2026-11-08T13:20:54.559Z",
-  "passed": 14,
-  "total": 14,
+  "at": "2026-11-08T14:10:22.034Z",
+  "passed": 21,
+  "total": 21,
   "results": [
     {
       "name": "(أ) DRAFT create under INCLUSIVE",
@@ -24,19 +24,54 @@
       "detail": "200"
     },
     {
-      "name": "(أ) confirm DRAFT ok after settings change",
+      "name": "(أ) confirm blocked TAX_POLICY_CHANGED",
+      "ok": true,
+      "detail": "status=409 code=TAX_POLICY_CHANGED"
+    },
+    {
+      "name": "(أ) preview shows live EXCLUSIVE total 114",
+      "ok": true,
+      "detail": "114"
+    },
+    {
+      "name": "(أ) confirm DRAFT ok after tax-policy ack",
       "ok": true,
       "detail": "200"
     },
     {
-      "name": "(أ) confirmed keeps INCLUSIVE snapshot (not live EXCLUSIVE)",
+      "name": "(أ) confirmed applies live EXCLUSIVE after ack",
       "ok": true,
-      "detail": "mode=INCLUSIVE total=100"
+      "detail": "mode=EXCLUSIVE total=114"
     },
     {
       "name": "(أ) new DRAFT uses EXCLUSIVE live settings",
       "ok": true,
       "detail": "mode=EXCLUSIVE total=114"
+    },
+    {
+      "name": "(أ2) DRAFT with VAT on total=114",
+      "ok": true,
+      "detail": "114"
+    },
+    {
+      "name": "(أ2) confirm blocked after VAT disabled",
+      "ok": true,
+      "detail": "status=409 code=TAX_POLICY_CHANGED"
+    },
+    {
+      "name": "(أ2) preview next total=100 (VAT off)",
+      "ok": true,
+      "detail": "100"
+    },
+    {
+      "name": "(أ2) confirm ok after VAT-off ack",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "(أ2) confirmed total=100 tax=0",
+      "ok": true,
+      "detail": "total=100 tax=0"
     },
     {
       "name": "(ب) mixed exempt+taxable create",

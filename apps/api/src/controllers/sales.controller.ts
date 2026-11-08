@@ -148,16 +148,32 @@ export async function confirmInvoiceHandler(req: Request, res: Response) {
     const payments = Array.isArray(req.body?.payments) ? req.body.payments : undefined
     const expectedUpdatedAt =
       typeof req.body?.updatedAt === 'string' ? req.body.updatedAt : undefined
+    const ackTaxPolicyChange = req.body?.ackTaxPolicyChange === true
     const invoice = await confirmInvoice(
       req.params.id,
       req.user!.id,
       amountPaid,
       payments,
       expectedUpdatedAt,
+      { ackTaxPolicyChange },
     )
     res.json({ success: true, data: invoice })
   } catch (error: unknown) {
     if (sendCreditIfAny(res, error)) return
+    if (
+      error instanceof Error &&
+      error.message === 'TAX_POLICY_CHANGED' &&
+      'details' in error
+    ) {
+      const details = (error as { details: unknown }).details
+      return res.status(409).json({
+        success: false,
+        code: 'TAX_POLICY_CHANGED',
+        error:
+          'إعدادات الضريبة تغيّرت أثناء المسودة — راجع الإجمالي الجديد قبل التأكيد',
+        details,
+      })
+    }
     const msg = error instanceof Error ? error.message : 'Failed to confirm invoice'
     if (msg === 'INVOICE_NOT_FOUND') {
       return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' })
