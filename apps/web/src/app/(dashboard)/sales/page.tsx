@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { salesService } from '@/services/sales.service'
 import { downloadSalesReportPDF } from '@/lib/pdf'
+import { formatDate } from '@/lib/dates'
 
-type InvoiceStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
+type InvoiceStatus = 'DRAFT' | 'PARKED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 type PaymentType = 'CASH' | 'CREDIT'
-type Currency = 'USD' | 'IQD'
+type Currency = 'USD' | 'EGP'
 
 interface SalesInvoice {
   id: string
@@ -23,6 +24,7 @@ interface SalesInvoice {
 
 const STATUS_LABELS: Record<InvoiceStatus, string> = {
   DRAFT: 'مسودة',
+  PARKED: 'معلّقة',
   CONFIRMED: 'مؤكدة',
   CANCELLED: 'ملغاة',
   RETURNED: 'مرتجعة',
@@ -30,6 +32,7 @@ const STATUS_LABELS: Record<InvoiceStatus, string> = {
 
 const STATUS_CLASSES: Record<InvoiceStatus, string> = {
   DRAFT: 'bg-gray-100 text-gray-700',
+  PARKED: 'bg-amber-100 text-amber-800',
   CONFIRMED: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
   RETURNED: 'bg-amber-100 text-amber-700',
@@ -87,11 +90,11 @@ export default function SalesPage() {
       const s = res.data
       const summary = {
         totalInvoices: s.total ?? allInvoices.length,
-        cashSalesIQD: allInvoices.filter((i: SalesInvoice) => i.type === 'CASH' && i.currency === 'IQD').reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
-        cashSalesUSD: allInvoices.filter((i: SalesInvoice) => i.type === 'CASH' && i.currency === 'USD').reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
-        creditSalesIQD: allInvoices.filter((i: SalesInvoice) => i.type === 'CREDIT' && i.currency === 'IQD').reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
-        creditSalesUSD: allInvoices.filter((i: SalesInvoice) => i.type === 'CREDIT' && i.currency === 'USD').reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
-        totalIQD: allInvoices.filter((i: SalesInvoice) => i.currency === 'IQD').reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
+        cashSalesEGP: allInvoices.filter((i: SalesInvoice) => i.type === 'CASH').reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
+        cashSalesUSD: 0,
+        creditSalesEGP: allInvoices.filter((i: SalesInvoice) => i.type === 'CREDIT').reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
+        creditSalesUSD: 0,
+        totalEGP: allInvoices.reduce((a: number, i: SalesInvoice) => a + Number(i.total), 0),
       }
       await downloadSalesReportPDF(allInvoices, summary, { from: fromDate, to: toDate, status })
     } catch {
@@ -145,6 +148,7 @@ export default function SalesPage() {
         >
           <option value="">جميع الحالات</option>
           <option value="DRAFT">مسودة</option>
+          <option value="PARKED">معلّقة</option>
           <option value="CONFIRMED">مؤكدة</option>
           <option value="CANCELLED">ملغاة</option>
           <option value="RETURNED">مرتجعة</option>
@@ -212,10 +216,10 @@ export default function SalesPage() {
                     {inv._count.items}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                    {Number(inv.total).toLocaleString('ar-IQ')}
+                    {Number(inv.total).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
-                    {inv.currency === 'USD' ? 'دولار' : 'دينار'}
+                    {'ج.م'}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CLASSES[inv.status]}`}>
@@ -228,7 +232,7 @@ export default function SalesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
-                    {new Date(inv.createdAt).toLocaleDateString('ar-IQ')}
+                    {formatDate(inv.createdAt)}
                   </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     {inv.status === 'CONFIRMED' && (

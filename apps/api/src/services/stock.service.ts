@@ -1,7 +1,7 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { CreateStockTransferInput } from '../validators/stock.validator'
-
-const prisma = new PrismaClient()
+import { ensureDefaultWarehouse, stockIn, stockOut } from './stock-ops.service'
+import { prisma } from '../db/prisma'
 
 export async function getStockTransfers(params: {
   page?: number
@@ -36,6 +36,8 @@ export async function getStockTransfers(params: {
         createdBy: {
           select: { id: true, name: true },
         },
+        fromWarehouse: { select: { id: true, name: true } },
+        toWarehouse: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -50,50 +52,41 @@ export async function getStockTransfers(params: {
 }
 
 export async function createStockTransfer(data: CreateStockTransferInput, userId: string) {
-  return prisma.$transaction(
-    async (tx) => {
-      const item = await tx.item.findUnique({ where: { id: data.itemId } })
-      if (!item) throw new Error('ITEM_NOT_FOUND')
-
-      if (data.type === 'OUT') {
-        if (new Prisma.Decimal(item.stockQty).lt(new Prisma.Decimal(data.quantity))) {
-          throw new Error('INSUFFICIENT_STOCK')
-        }
-      }
-
-      if (data.type === 'IN') {
-        await tx.item.update({
-          where: { id: data.itemId },
-          data: { stockQty: { increment: data.quantity } },
-        })
-      } else {
-        await tx.item.update({
-          where: { id: data.itemId },
-          data: { stockQty: { decrement: data.quantity } },
-        })
-      }
-
-      return tx.stockTransfer.create({
-        data: {
-          type: data.type,
-          itemId: data.itemId,
-          quantity: data.quantity,
-          reason: data.reason,
-          notes: data.notes,
-          createdById: userId,
-        },
-        include: {
-          item: {
-            select: { id: true, name_ar: true, name_en: true, barcode: true, unit: true },
-          },
-          createdBy: {
-            select: { id: true, name: true },
-          },
-        },
+  const wh = await ensureDefaultWarehouse(prisma)
+  return prisma.$transaction(async (tx) => {
+    if (data.type === 'IN') {
+      await stockIn(tx, {
+        itemId: data.itemId,
+        warehouseId: wh.id,
+        qty: Number(data.quantity),
+        type: 'IN',
+        reason: data.reason,
+        userId,
+        notes: data.notes,
+        updateAvgCost: false,
       })
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-  )
+    } else {
+      await stockOut(tx, {
+        itemId: data.itemId,
+        warehouseId: wh.id,
+        qty: Number(data.quantity),
+        type: 'OUT',
+        reason: data.reason,
+        userId,
+        notes: data.notes,
+      })
+    }
+    return tx.stockTransfer.findFirst({
+      where: { itemId: data.itemId, createdById: userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        item: {
+          select: { id: true, name_ar: true, name_en: true, barcode: true, unit: true },
+        },
+        createdBy: { select: { id: true, name: true } },
+      },
+    })
+  })
 }
 
 export async function getInventory(params: {
@@ -108,7 +101,7 @@ export async function getInventory(params: {
   if (search) {
     where.OR = [
       { name_ar: { contains: search } },
-      { name_en: { contains: search, mode: 'insensitive' } },
+      { name_en: { contains: search } },
       { barcode: { contains: search } },
     ]
   }

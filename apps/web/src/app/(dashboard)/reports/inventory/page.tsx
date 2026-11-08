@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { reportsService } from '@/services/reports.service'
+import { formatNumber } from '@/lib/currency'
 
 interface InventoryItem {
   id: string
@@ -25,7 +26,7 @@ interface InventorySummary {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('ar-IQ', { maximumFractionDigits: 0 })
+  return formatNumber(n)
 }
 
 function exportCsv(items: InventoryItem[]) {
@@ -183,7 +184,7 @@ export default function InventoryReportPage() {
                         isLowStock(item) ? 'text-amber-600 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      {Number(item.stockQty).toLocaleString('ar-IQ')}
+                      {Number(item.stockQty).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                       {fmt(item.costPrice)}

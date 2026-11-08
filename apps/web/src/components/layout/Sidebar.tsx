@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { triggerHaptic } from '@/lib/haptics'
+import { BRAND } from '@/lib/branding'
 
 type Role = 'ADMIN' | 'MANAGER' | 'CASHIER' | 'VIEWER' | 'ACCOUNTANT' | 'STAFF'
 
@@ -18,6 +19,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/dashboard',      icon: '📊', labelAr: 'لوحة التحكم',    roles: ['ADMIN', 'MANAGER', 'CASHIER', 'VIEWER', 'ACCOUNTANT', 'STAFF'] },
   { href: '/sales',          icon: '🧾', labelAr: 'المبيعات',        roles: ['ADMIN', 'MANAGER', 'CASHIER', 'STAFF'] },
+  { href: '/quotes',         icon: '📝', labelAr: 'عروض الأسعار',    roles: ['ADMIN', 'MANAGER', 'CASHIER', 'STAFF'] },
   { href: '/purchases',      icon: '🛒', labelAr: 'المشتريات',       roles: ['ADMIN', 'MANAGER'] },
   { href: '/customers',      icon: '👥', labelAr: 'العملاء',         roles: ['ADMIN', 'MANAGER', 'CASHIER', 'STAFF', 'ACCOUNTANT'] },
   { href: '/suppliers',      icon: '🏭', labelAr: 'الموردون',        roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
@@ -25,10 +27,15 @@ const navItems: NavItem[] = [
   { href: '/expenses',       icon: '💸', labelAr: 'المصروفات',       roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
   { href: '/vouchers',       icon: '📋', labelAr: 'السندات',         roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
   { href: '/stock',          icon: '🔄', labelAr: 'حركة المخزون',   roles: ['ADMIN', 'MANAGER'] },
-  { href: '/inventory',      icon: '📉', labelAr: 'الجرد',           roles: ['ADMIN', 'MANAGER', 'VIEWER', 'ACCOUNTANT'] },
+  { href: '/warehouses',     icon: '🏪', labelAr: 'المخازن والجرد', roles: ['ADMIN', 'MANAGER'] },
+  { href: '/inventory',      icon: '📉', labelAr: 'قيمة المخزون',   roles: ['ADMIN', 'MANAGER', 'VIEWER', 'ACCOUNTANT'] },
+  { href: '/shifts',         icon: '🕐', labelAr: 'الوردية',        roles: ['ADMIN', 'MANAGER', 'CASHIER', 'STAFF'] },
+  { href: '/labels',         icon: '🏷️', labelAr: 'ملصقات باركود',  roles: ['ADMIN', 'MANAGER', 'STAFF'] },
+  { href: '/serials',        icon: '🔢', labelAr: 'سيريالات',       roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { href: '/cash-statement', icon: '💰', labelAr: 'كشف الصندوق',    roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
   { href: '/reports',        icon: '📈', labelAr: 'التقارير',        roles: ['ADMIN', 'MANAGER', 'VIEWER', 'ACCOUNTANT'] },
-  { href: '/staff',          icon: '👤', labelAr: 'إدارة الموظفين',  roles: ['ADMIN'] },
+  { href: '/staff',          icon: '👤', labelAr: 'المستخدمون',      roles: ['ADMIN'] },
+  { href: '/staff/advances', icon: '💵', labelAr: 'سلف الموظفين',    roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
   { href: '/settings',       icon: '⚙️', labelAr: 'الإعدادات',      roles: ['ADMIN'] },
 ]
 
@@ -56,6 +63,7 @@ export function Sidebar({ collapsed, onToggle, isMobile, mobileOpen, onMobileClo
 
   return (
     <aside
+      className="dashboard-chrome"
       style={{
         position: 'fixed',
         top: 0,
@@ -88,8 +96,17 @@ export function Sidebar({ collapsed, onToggle, isMobile, mobileOpen, onMobileClo
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ fontSize: 22, fontWeight: 700, color: '#38bdf8', letterSpacing: 1 }}>
-          {collapsed && !isMobile ? 'IMS' : 'IMS-Pro'}
+        <span style={{ fontSize: collapsed && !isMobile ? 18 : 16, fontWeight: 700, color: '#38bdf8', letterSpacing: 0.5 }}>
+          {collapsed && !isMobile ? (
+            BRAND.logoCollapsed
+          ) : (
+            <>
+              <span style={{ display: 'block', lineHeight: 1.2 }}>{BRAND.productNameAr}</span>
+              <span style={{ display: 'block', fontSize: 10, fontWeight: 500, color: '#94a3b8', marginTop: 2 }}>
+                {BRAND.companyNameAr}
+              </span>
+            </>
+          )}
         </span>
       </div>
 
@@ -98,7 +115,9 @@ export function Sidebar({ collapsed, onToggle, isMobile, mobileOpen, onMobileClo
         {filteredItems.map((item) => {
           const isActive =
             pathname === item.href ||
-            (item.href !== '/dashboard' && pathname.startsWith(item.href))
+            (item.href !== '/dashboard' &&
+              item.href !== '/staff' &&
+              pathname.startsWith(item.href))
 
           return (
             <Link

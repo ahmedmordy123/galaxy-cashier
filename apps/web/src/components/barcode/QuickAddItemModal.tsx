@@ -44,13 +44,20 @@ export function QuickAddItemModal({ barcode, onAdded, onClose }: Props) {
     try {
       const item = await itemsService.create({
         ...form,
+        name_en: form.name_en.trim() || form.name_ar.trim(),
         barcode,
         unit: 'piece',
         minimumStock: 0,
       })
       onAdded(item as ScannedItem)
-    } catch {
-      setError('فشل في حفظ الصنف. تحقق من البيانات.')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string; details?: Record<string, string[]> } } }
+      const msg = axiosErr.response?.data?.error ?? 'فشل في حفظ الصنف. تحقق من البيانات.'
+      const details = axiosErr.response?.data?.details
+      const detailText = details
+        ? ' — ' + Object.entries(details).map(([k, v]) => `${k}: ${(v || []).join(', ')}`).join(' | ')
+        : ''
+      setError(msg + detailText)
     } finally {
       setLoading(false)
     }
@@ -61,8 +68,6 @@ export function QuickAddItemModal({ barcode, onAdded, onClose }: Props) {
     { name: 'retailPrice', label: 'المفرد' },
     { name: 'wholesalePrice', label: 'الجملة' },
     { name: 'specialPrice', label: 'الخاص' },
-    { name: 'dollarPrice', label: 'دولار' },
-    { name: 'dinarPrice', label: 'دينار' },
   ]
 
   return (

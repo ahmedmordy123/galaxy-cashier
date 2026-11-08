@@ -1,7 +1,12 @@
 #Requires -Version 5.1
+
+param(
+  [switch]$InstallerOnly
+)
+
 <#
 .SYNOPSIS
-    IMS-Pro Windows installer build pipeline.
+    Galaxy Cashier — Windows installer build pipeline.
     Run from any directory; script locates the monorepo root automatically.
 
 .DESCRIPTION
@@ -11,12 +16,11 @@
     Step 4 - Build Next.js standalone output  (NEXT_PUBLIC_API_URL baked in)
     Step 5 - Assemble web staging folder      (standalone + static + public)
     Step 6 - Copy pre-seeded SQLite template  (seed.db -> assets/)
-    Step 7 - Run electron-builder             (NSIS installer + portable .exe)
+    Step 7 - Run electron-builder             (NSIS Setup wizard for clients)
 
 .OUTPUT
     apps/desktop/dist/
-      IMS-Pro Setup <version>.exe    <- NSIS installer
-      IMS-Pro <version>.exe          <- portable single-file exe
+      Galaxy Cashier Setup <version>.exe    <- give this file to clients
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -29,7 +33,7 @@ function Write-Fail($msg)      { Write-Host "  [FAIL] $msg" -ForegroundColor Red
 
 Write-Host ""
 Write-Host "  +----------------------------------------------+" -ForegroundColor Blue
-Write-Host "  |  IMS-Pro - Windows Desktop Build Pipeline    |" -ForegroundColor Blue
+Write-Host "  |  Galaxy Cashier - Windows Build              |" -ForegroundColor Blue
 Write-Host "  +----------------------------------------------+" -ForegroundColor Blue
 Write-Host "  Root : $Root"
 Write-Host "  Date : $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
@@ -40,9 +44,86 @@ $StagingWeb  = Join-Path $Desktop 'staging\web'
 $StagingNode = Join-Path $Desktop 'staging\node'
 $AssetsDir   = Join-Path $Desktop 'assets'
 
-foreach ($d in @($StagingApi, $StagingWeb, $StagingNode, $AssetsDir)) {
-  if (Test-Path $d) { Remove-Item $d -Recurse -Force }
-  New-Item -ItemType Directory -Force $d | Out-Null
+if (-not $InstallerOnly) {
+  foreach ($d in @($StagingApi, $StagingWeb, $StagingNode, $AssetsDir)) {
+    if (Test-Path $d) { Remove-Item $d -Recurse -Force }
+    New-Item -ItemType Directory -Force $d | Out-Null
+  }
+} else {
+  foreach ($d in @($StagingApi, $StagingWeb, $StagingNode, $AssetsDir)) {
+    New-Item -ItemType Directory -Force $d | Out-Null
+  }
+  $stagingReady = (Test-Path (Join-Path $StagingApi 'server.js')) -and
+    (Test-Path (Join-Path $StagingNode 'node.exe')) -and
+    (Test-Path (Join-Path $StagingWeb 'apps\web\server.js')) -and
+    (Test-Path (Join-Path $AssetsDir 'seed.db'))
+  if ($stagingReady) {
+    Write-Host '  Staging already built — skipping steps 1–6' -ForegroundColor DarkGray
+    Write-Step 7 'Running electron-builder (NSIS installer only)...'
+    $ensure7 = Join-Path $Root 'scripts\ensure-7zip.ps1'
+    if (Test-Path $ensure7) {
+      & powershell -NoProfile -ExecutionPolicy Bypass -File $ensure7 -Root $Root
+      if ($LASTEXITCODE -ne 0) { Write-Fail '7-Zip / 7za required for packaging. Install 7-Zip from https://www.7-zip.org/' }
+    }
+    Push-Location $Desktop
+    try {
+      $desktopNm = Join-Path $Desktop 'node_modules'
+      $src7 = Join-Path $Root 'node_modules\7zip-bin'
+      if (-not (Test-Path $src7)) { Write-Fail '7zip-bin missing at repo root' }
+      New-Item -ItemType Directory -Force $desktopNm | Out-Null
+      $dest7 = Join-Path $desktopNm '7zip-bin'
+      if (Test-Path $dest7) { Remove-Item $dest7 -Recurse -Force }
+      Copy-Item -Recurse -Force $src7 $dest7
+
+      $env:CSC_IDENTITY_AUTO_DISCOVERY = 'false'
+
+      $ebCmd = Join-Path $Root 'node_modules\.bin\electron-builder.cmd'
+      if (-not (Test-Path $ebCmd)) {
+        $ebCmd = Join-Path $Root 'node_modules\electron-builder\cli.js'
+      }
+      if (Test-Path $ebCmd -PathType Leaf) {
+        if ($ebCmd -like '*.cmd') {
+          cmd /c "`"$ebCmd`" --win nsis --x64"
+        } else {
+          node $ebCmd --win nsis --x64
+        }
+      } else {
+        Push-Location $Root
+        cmd /c 'npx --yes electron-builder --win nsis --x64'
+        Pop-Location
+      }
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host '  NSIS failed — trying portable .exe ...' -ForegroundColor Yellow
+        if (Test-Path (Join-Path $Root 'node_modules\.bin\electron-builder.cmd')) {
+          cmd /c "`"$(Join-Path $Root 'node_modules\.bin\electron-builder.cmd')`" --win portable --x64"
+        } else {
+          cmd /c 'npx --yes electron-builder --win portable --x64'
+        }
+      }
+      if ($LASTEXITCODE -ne 0) { Write-Fail "electron-builder exited with code $LASTEXITCODE" }
+      $installerDir = Join-Path $Desktop 'dist'
+      $exes = Get-ChildItem $installerDir -Filter '*.exe' -ErrorAction SilentlyContinue
+      if ($exes) {
+        foreach ($exe in $exes) {
+          Write-Ok "$($exe.Name)  ($([math]::Round($exe.Length/1MB, 1)) MB)"
+        }
+      } else {
+        Write-Fail 'No .exe files found in dist/'
+      }
+    } catch { Write-Fail "electron-builder failed: $_" }
+    finally { Pop-Location }
+    Write-Host ''
+    Write-Host '  +----------------------------------------------+' -ForegroundColor Green
+    Write-Host '  |  BUILD COMPLETE                              |' -ForegroundColor Green
+    Write-Host '  |  Give client: Galaxy Cashier Setup *.exe       |' -ForegroundColor Green
+    Write-Host '  +----------------------------------------------+' -ForegroundColor Green
+    exit 0
+  }
+  Write-Host '  Staging incomplete — running full build (steps 1–6)...' -ForegroundColor Yellow
+  foreach ($d in @($StagingApi, $StagingWeb, $StagingNode, $AssetsDir)) {
+    if (Test-Path $d) { Remove-Item $d -Recurse -Force }
+    New-Item -ItemType Directory -Force $d | Out-Null
+  }
 }
 
 # ============================================================
@@ -144,35 +225,92 @@ Write-Ok "Web staging assembled"
 # ============================================================
 # STEP 6 - Copy pre-seeded SQLite template
 # ============================================================
-Write-Step 6 "Preparing seed database template..."
+Write-Step 6 "Preparing seed database template (client - users and settings only)..."
 
-$DbSrc  = Join-Path $Root 'data\cashier.db'
 $DbDest = Join-Path $AssetsDir 'seed.db'
+$SeedBuildDir = Join-Path $AssetsDir '_seed_build'
+if (Test-Path $SeedBuildDir) { Remove-Item $SeedBuildDir -Recurse -Force }
+New-Item -ItemType Directory -Force $SeedBuildDir | Out-Null
+$TempDb = Join-Path $SeedBuildDir 'cashier.db'
 
-if (-not (Test-Path $DbSrc)) {
-  Write-Host "  cashier.db not found - running seed..." -ForegroundColor Yellow
-  Push-Location (Join-Path $Root 'packages\db')
-  $env:DATABASE_URL = "file:../../../data/cashier.db"
-  npx prisma migrate deploy --schema prisma/schema.prisma 2>&1 | Out-Null
-  npx prisma db seed 2>&1 | Out-Null
+Push-Location (Join-Path $Root 'packages\db')
+try {
+  $env:DATABASE_URL = 'file:' + ($TempDb -replace '\\', '/')
+  $env:SEED_PROFILE = 'client'
+  # Prisma writes progress to stderr — do not let ErrorActionPreference=Stop treat that as failure
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & npx prisma db push --force-reset --accept-data-loss --schema prisma/schema.prisma 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Fail 'prisma db push failed for seed.db' }
+    & npx prisma db seed --schema prisma/schema.prisma 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Fail 'prisma db seed failed for seed.db' }
+  } finally {
+    $ErrorActionPreference = $prevEap
+  }
+} finally {
   Pop-Location
 }
 
-Copy-Item -Force $DbSrc $DbDest
-Write-Ok "seed.db: $([math]::Round((Get-Item $DbDest).Length/1KB)) KB (admin/admin123 seeded)"
+if (-not (Test-Path $TempDb)) {
+  if (Test-Path $SeedBuildDir) { Remove-Item $SeedBuildDir -Recurse -Force -ErrorAction SilentlyContinue }
+  Write-Fail "seed build did not produce cashier.db at $TempDb"
+}
+
+Copy-Item -Force $TempDb $DbDest
+Remove-Item $SeedBuildDir -Recurse -Force -ErrorAction SilentlyContinue
+Write-Ok "seed.db: $([math]::Round((Get-Item $DbDest).Length/1KB)) KB (client empty store, admin/admin123)"
 
 # ============================================================
 # STEP 7 - Electron-builder
 # ============================================================
-Write-Step 7 "Running electron-builder (NSIS + portable)..."
+Write-Step 7 $(if ($InstallerOnly) { 'Running electron-builder (NSIS installer only)...' } else { 'Running electron-builder (NSIS)...' })
+
+$ensure7 = Join-Path $Root 'scripts\ensure-7zip.ps1'
+if (Test-Path $ensure7) {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $ensure7 -Root $Root
+  if ($LASTEXITCODE -ne 0) { Write-Fail '7-Zip / 7za required for packaging. Install 7-Zip from https://www.7-zip.org/' }
+}
 
 Push-Location $Desktop
 try {
-  # Use electron-builder from root node_modules (installed as root devDependency)
-  $eb = Join-Path $Root 'node_modules\.bin\electron-builder.cmd'
-  if (-not (Test-Path $eb)) { Write-Fail "electron-builder not found. Run: npm install from the monorepo root first." }
+  $desktopNm = Join-Path $Desktop 'node_modules'
+  $src7 = Join-Path $Root 'node_modules\7zip-bin'
+  if (-not (Test-Path $src7)) {
+    Write-Fail '7zip-bin missing at repo root — run npm install at repo root'
+  }
+  New-Item -ItemType Directory -Force $desktopNm | Out-Null
+  $dest7 = Join-Path $desktopNm '7zip-bin'
+  if (Test-Path $dest7) { Remove-Item $dest7 -Recurse -Force }
+  Copy-Item -Recurse -Force $src7 $dest7
+  Write-Host '  [OK] Local node_modules stub (skips npm --production prune of 7zip-bin)' -ForegroundColor DarkGray
 
-  & $eb --win --x64
+  $env:CSC_IDENTITY_AUTO_DISCOVERY = 'false'
+
+  $ebCmd = Join-Path $Root 'node_modules\.bin\electron-builder.cmd'
+  if (-not (Test-Path $ebCmd)) {
+    $ebCmd = Join-Path $Root 'node_modules\electron-builder\cli.js'
+  }
+
+  if (Test-Path $ebCmd -PathType Leaf) {
+    if ($ebCmd -like '*.cmd') {
+      cmd /c "`"$ebCmd`" --win nsis --x64"
+    } else {
+      node $ebCmd --win nsis --x64
+    }
+  } else {
+    Push-Location $Root
+    cmd /c 'npx --yes electron-builder --win nsis --x64'
+    Pop-Location
+  }
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host '  NSIS failed — trying portable .exe ...' -ForegroundColor Yellow
+    if (Test-Path (Join-Path $Root 'node_modules\.bin\electron-builder.cmd')) {
+      cmd /c "`"$(Join-Path $Root 'node_modules\.bin\electron-builder.cmd')`" --win portable --x64"
+    } else {
+      cmd /c 'npx --yes electron-builder --win portable --x64'
+    }
+  }
   if ($LASTEXITCODE -ne 0) { Write-Fail "electron-builder exited with code $LASTEXITCODE" }
   $installerDir = Join-Path $Desktop 'dist'
   $exes = Get-ChildItem $installerDir -Filter '*.exe' -ErrorAction SilentlyContinue
@@ -191,7 +329,7 @@ Write-Host ""
 Write-Host "  +----------------------------------------------+" -ForegroundColor Green
 Write-Host "  |  BUILD COMPLETE                              |" -ForegroundColor Green
 Write-Host "  |                                              |" -ForegroundColor Green
-Write-Host "  |  Installer: apps/desktop/dist/              |" -ForegroundColor Green
+Write-Host "  |  Give client: Galaxy Cashier Setup *.exe       |" -ForegroundColor Green
 Write-Host "  |                                              |" -ForegroundColor Green
 Write-Host "  |  First-run: copies seed.db to %APPDATA%     |" -ForegroundColor Green
 Write-Host "  |  Login:     admin / admin123                 |" -ForegroundColor Green

@@ -9,7 +9,7 @@ export default function EditSupplierPage() {
   const { id } = useParams<{ id: string }>()
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [form, setForm] = useState({ name: '', phone: '', address: '', currency: 'IQD', notes: '' })
+  const [form, setForm] = useState({ name: '', phone: '', address: '', currency: 'EGP', notes: '' })
 
   useEffect(() => {
     suppliersService.getById(id)
@@ -17,7 +17,7 @@ export default function EditSupplierPage() {
         name: s.name,
         phone: s.phone || '',
         address: s.address || '',
-        currency: s.currency,
+        currency: 'EGP',
         notes: s.notes || '',
       }))
       .catch(() => router.push('/suppliers'))
@@ -62,10 +62,9 @@ export default function EditSupplierPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العملة</label>
-            <select name="currency" value={form.currency} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-              <option value="IQD">دينار عراقي</option>
-              <option value="USD">دولار أمريكي</option>
-            </select>
+            <div className="w-full px-3 py-2 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm font-medium">
+              جنيه مصري (ج.م)
+            </div>
           </div>
         </div>
         <div>

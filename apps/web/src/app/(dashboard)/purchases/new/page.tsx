@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { purchasesService } from '@/services/purchases.service'
 import api from '@/lib/api'
+import { CURRENCY_CODE, displayCurrency } from '@/lib/currency'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,18 +72,11 @@ export default function NewPurchasePage() {
   const [showItemDropdown, setShowItemDropdown] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
 
-  // ── Form state
-  const [currency, setCurrency] = useState<'IQD' | 'USD'>('IQD')
-  const [exchangeRate, setExchangeRate] = useState<number>(1480)
-
-  // Load exchange rate from settings on mount
-  useEffect(() => {
-    api.get('/api/settings').then((r) => {
-      const rate = Number(r.data?.data?.exchange_rate)
-      if (rate > 0) setExchangeRate(rate)
-    }).catch(() => {})
-  }, [])
+  // ── Form state — جنيه مصري فقط
+  const currency = CURRENCY_CODE
+  const exchangeRate = 1
   const [invoiceDiscount, setInvoiceDiscount] = useState<number>(0)
+  const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT'>('CREDIT')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineItem[]>([])
 
@@ -233,6 +227,7 @@ export default function NewPurchasePage() {
     if (lines.length === 0) throw new Error('يرجى إضافة صنف واحد على الأقل')
     return {
       supplierId: selectedSupplier.id,
+      paymentType,
       currency,
       exchangeRate,
       discount: invoiceDiscount,
@@ -306,6 +301,16 @@ export default function NewPurchasePage() {
           <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">بيانات الفاتورة</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نوع الدفع</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPaymentType('CREDIT')}
+                  className={`flex-1 py-2 text-sm rounded-lg border ${paymentType === 'CREDIT' ? 'bg-blue-600 text-white' : 'border-gray-300'}`}>آجل</button>
+                <button type="button" onClick={() => setPaymentType('CASH')}
+                  className={`flex-1 py-2 text-sm rounded-lg border ${paymentType === 'CASH' ? 'bg-emerald-600 text-white' : 'border-gray-300'}`}>نقدي</button>
+              </div>
+            </div>
+
             {/* Supplier */}
             <div className="sm:col-span-2 lg:col-span-1" ref={supplierRef}>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -346,7 +351,7 @@ export default function NewPurchasePage() {
                       <span>
                         الرصيد:&nbsp;
                         <span className={supplierDetail.balance > 0 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
-                          {supplierDetail.balance.toLocaleString('ar-IQ')} {currency}
+                          {supplierDetail.balance.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {displayCurrency()}
                         </span>
                       </span>
                       {supplierDetail.phone && <span>📞 {supplierDetail.phone}</span>}
@@ -357,34 +362,14 @@ export default function NewPurchasePage() {
               )}
             </div>
 
-            {/* Currency */}
+            {/* Currency — fixed EGP */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 العملة
               </label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as 'IQD' | 'USD')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-              >
-                <option value="IQD">دينار عراقي (IQD)</option>
-                <option value="USD">دولار أمريكي (USD)</option>
-              </select>
-            </div>
-
-            {/* Exchange rate */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                سعر الصرف
-              </label>
-              <input
-                type="number"
-                step="0.001"
-                min="0"
-                value={exchangeRate}
-                onChange={(e) => setExchangeRate(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-              />
+              <div className="w-full px-3 py-2 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm font-medium">
+                جنيه مصري (ج.م)
+              </div>
             </div>
 
             {/* Invoice discount */}
@@ -448,11 +433,11 @@ export default function NewPurchasePage() {
                             <span className="text-xs text-gray-400 font-mono">{item.barcode}</span>
                           )}
                           <span className="text-xs font-semibold text-green-600 dark:text-green-400">
-                            {Number(item.costPrice).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {currency}
+                            {Number(item.costPrice).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {displayCurrency()}
                           </span>
                         </div>
                         <span className="text-xs text-gray-400">
-                          مخزون: {Number(item.stockQty).toLocaleString('ar-IQ')}
+                          مخزون: {Number(item.stockQty).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </li>
@@ -523,7 +508,7 @@ export default function NewPurchasePage() {
                         />
                       </td>
                       <td className="px-3 py-2 font-medium text-gray-900 dark:text-white text-left">
-                        {line.subtotal.toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}
+                        {line.subtotal.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-3 py-2">
                         <button
@@ -549,19 +534,19 @@ export default function NewPurchasePage() {
               <div className="flex justify-between text-gray-600 dark:text-gray-400">
                 <span>المجموع الفرعي</span>
                 <span className="font-mono">
-                  {subtotal.toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currency}
+                  {subtotal.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {displayCurrency()}
                 </span>
               </div>
               <div className="flex justify-between text-gray-600 dark:text-gray-400">
                 <span>الخصم ({invoiceDiscount}%)</span>
                 <span className="font-mono text-red-500">
-                  -{discountAmount.toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currency}
+                  -{discountAmount.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {displayCurrency()}
                 </span>
               </div>
               <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white border-t border-gray-200 dark:border-gray-700 pt-2">
                 <span>الإجمالي</span>
                 <span className="font-mono">
-                  {total.toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currency}
+                  {total.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {displayCurrency()}
                 </span>
               </div>
             </div>

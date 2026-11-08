@@ -28,7 +28,7 @@ export default function CustomerStatementPage() {
         <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700">← رجوع</button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">كشف حساب العميل</h1>
-          <p className="text-gray-500">{data.customer?.name} — الرصيد: {Number(data.customer?.balance).toLocaleString('ar-IQ')} {data.customer?.currency}</p>
+          <p className="text-gray-500">{data.customer?.name} — الرصيد: {Number(data.customer?.balance).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {data.customer?.currency}</p>
         </div>
       </div>
 
@@ -52,10 +52,10 @@ export default function CustomerStatementPage() {
               {data.invoices.map((inv) => (
                 <tr key={inv.id}>
                   <td className="px-4 py-2 font-mono text-xs">{inv.invoiceNumber}</td>
-                  <td className="px-4 py-2 text-gray-500">{new Date(inv.createdAt).toLocaleDateString('ar-IQ')}</td>
-                  <td className="px-4 py-2">{Number(inv.total).toLocaleString('ar-IQ')} {inv.currency}</td>
-                  <td className="px-4 py-2">{Number(inv.amountPaid).toLocaleString('ar-IQ')}</td>
-                  <td className={`px-4 py-2 font-medium ${Number(inv.balance) > 0 ? 'text-red-600' : 'text-green-600'}`}>{Number(inv.balance).toLocaleString('ar-IQ')}</td>
+                  <td className="px-4 py-2 text-gray-500">{new Date(inv.createdAt).toLocaleDateString('ar-EG')}</td>
+                  <td className="px-4 py-2">{Number(inv.total).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {inv.currency}</td>
+                  <td className="px-4 py-2">{Number(inv.amountPaid).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
+                  <td className={`px-4 py-2 font-medium ${Number(inv.balance) > 0 ? 'text-red-600' : 'text-green-600'}`}>{Number(inv.balance).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-2">{inv.type === 'CASH' ? 'نقداً' : 'آجل'}</td>
                 </tr>
               ))}
@@ -82,8 +82,8 @@ export default function CustomerStatementPage() {
               {data.vouchers.map((v) => (
                 <tr key={v.id}>
                   <td className="px-4 py-2 font-mono text-xs">{v.voucherNumber}</td>
-                  <td className="px-4 py-2 text-gray-500">{new Date(v.createdAt).toLocaleDateString('ar-IQ')}</td>
-                  <td className="px-4 py-2 text-green-600 font-medium">{Number(v.amount).toLocaleString('ar-IQ')} {v.currency}</td>
+                  <td className="px-4 py-2 text-gray-500">{new Date(v.createdAt).toLocaleDateString('ar-EG')}</td>
+                  <td className="px-4 py-2 text-green-600 font-medium">{Number(v.amount).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {v.currency}</td>
                   <td className="px-4 py-2 text-gray-500">{v.description}</td>
                 </tr>
               ))}

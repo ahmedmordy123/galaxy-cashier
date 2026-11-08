@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { BRAND } from '@/lib/branding'
 
 const pathTitleMap: Record<string, string> = {
   '/dashboard':      'لوحة التحكم',
@@ -67,7 +68,7 @@ function getPageTitle(pathname: string): string {
     if (pathTitleMap[base]) return pathTitleMap[base]
   }
 
-  return 'IMS-Pro'
+  return BRAND.documentTitle
 }
 
 interface TopbarProps {
@@ -86,6 +87,7 @@ export function Topbar({ sidebarWidth, onMenuToggle }: TopbarProps) {
 
   return (
     <header
+      className="dashboard-chrome"
       dir="rtl"
       style={{
         position: 'fixed',

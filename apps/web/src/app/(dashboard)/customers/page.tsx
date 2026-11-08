@@ -79,7 +79,7 @@ export default function CustomersPage() {
                     </span>
                   </td>
                   <td className={`px-4 py-3 font-medium ${Number(c.balance) > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                    {Number(c.balance).toLocaleString('ar-IQ')} {c.currency}
+                    {Number(c.balance).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {c.currency}
                   </td>
                   <td className="px-4 py-3 flex gap-2">
                     <button onClick={() => router.push(`/customers/${c.id}`)} className="text-blue-600 hover:underline text-sm">تعديل</button>

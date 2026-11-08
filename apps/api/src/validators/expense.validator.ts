@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { currencySchema } from './currency.schema'
+import { dateOnly, idString, positiveNumber } from './zod-helpers'
 
 export const createExpenseCategorySchema = z.object({
   nameAr: z.string().min(1).max(100),
@@ -7,14 +9,15 @@ export const createExpenseCategorySchema = z.object({
 export const updateExpenseCategorySchema = createExpenseCategorySchema.partial()
 
 export const createExpenseSchema = z.object({
-  categoryId: z.string().cuid(),
-  amount: z.number().positive(),
-  currency: z.enum(['USD', 'IQD']),
-  exchangeRate: z.number().positive().default(1480),
+  // Seed uses ids like expcat-salaries — not cuid
+  categoryId: idString,
+  amount: positiveNumber,
+  currency: currencySchema,
+  exchangeRate: positiveNumber.default(1),
   description: z.string().optional(),
   paidBy: z.string().optional(),
   notes: z.string().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: dateOnly,
 })
 export const updateExpenseSchema = createExpenseSchema.partial()
 

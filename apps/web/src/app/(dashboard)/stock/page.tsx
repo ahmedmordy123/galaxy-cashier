@@ -42,7 +42,7 @@ const REASON_LABELS: Record<string, string> = {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('ar-IQ', {
+  return new Date(dateStr).toLocaleDateString('ar-EG', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -89,7 +89,7 @@ export default function StockPage() {
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await api.get('/api/items', { params: { search: itemSearch, pageSize: 10 } })
-        const items: ItemOption[] = res.data?.items ?? []
+        const items: ItemOption[] = res.data?.data?.items ?? []
         setItemOptions(items)
         setShowDropdown(items.length > 0)
       } catch {
@@ -159,6 +159,19 @@ export default function StockPage() {
         notes: notes.trim() || undefined,
       })
       setFormMsg({ type: 'success', text: 'تم تسجيل حركة المخزون بنجاح' })
+      if (selectedItem) {
+        const refreshed = await api.get(`/api/items/${selectedItem.id}`).catch(() => null)
+        const item = refreshed?.data?.data ?? refreshed?.data
+        if (item) {
+          const qty = Number(item.stockQty)
+          const min = Number(item.minimumStock ?? 0)
+          if (qty < 0) {
+            setFormMsg({ type: 'error', text: 'تحذير: المخزون أصبح سالباً بعد هذه الحركة — راجع الكميات فوراً' })
+          } else if (min > 0 && qty <= min) {
+            setFormMsg({ type: 'error', text: `تحذير: المخزون (${qty}) عند أو أقل من الحد الأدنى (${min})` })
+          }
+        }
+      }
       setSelectedItem(null)
       setItemSearch('')
       setQuantity('')
@@ -203,7 +216,7 @@ export default function StockPage() {
                     <span className="text-gray-400 text-xs mr-2 font-mono">{selectedItem.barcode}</span>
                   )}
                   <span className="text-blue-500 text-xs mr-2">
-                    مخزون: {Number(selectedItem.stockQty).toLocaleString('ar-IQ')} {selectedItem.unit}
+                    مخزون: {Number(selectedItem.stockQty).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {selectedItem.unit}
                   </span>
                 </div>
                 <button
@@ -242,7 +255,7 @@ export default function StockPage() {
                       {opt.name_en}
                       {opt.barcode && <span className="font-mono mr-2">{opt.barcode}</span>}
                       <span className="mr-2 text-blue-500">
-                        مخزون: {Number(opt.stockQty).toLocaleString('ar-IQ')} {opt.unit}
+                        مخزون: {Number(opt.stockQty).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {opt.unit}
                       </span>
                     </div>
                   </button>
@@ -485,9 +498,9 @@ export default function StockPage() {
                       {REASON_LABELS[t.reason] ?? t.reason}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                      {Number(t.quantity).toLocaleString('ar-IQ', {
+                      {Number(t.quantity).toLocaleString('en-EG', {
                         minimumFractionDigits: 0,
-                        maximumFractionDigits: 3,
+                        maximumFractionDigits: 2,
                       })}{' '}
                       {t.item.unit}
                     </td>

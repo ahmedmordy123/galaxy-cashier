@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { reportsService } from '@/services/reports.service'
 
 type PaymentType = 'CASH' | 'CREDIT'
-type Currency = 'USD' | 'IQD'
+type Currency = 'USD' | 'EGP'
 type InvoiceStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 
 interface SalesInvoice {
@@ -21,11 +21,11 @@ interface SalesInvoice {
 
 interface Summary {
   totalInvoices: number
-  cashSalesIQD: number
+  cashSalesEGP: number
   cashSalesUSD: number
-  creditSalesIQD: number
+  creditSalesEGP: number
   creditSalesUSD: number
-  totalIQD: number
+  totalEGP: number
 }
 
 const PAYMENT_LABELS: Record<PaymentType, string> = { CASH: 'نقدي', CREDIT: 'آجل' }
@@ -58,9 +58,9 @@ function exportCsv(invoices: SalesInvoice[]) {
     inv.customer?.name ?? '',
     PAYMENT_LABELS[inv.type],
     String(Number(inv.total)),
-    inv.currency,
+    'ج.م',
     STATUS_LABELS[inv.status],
-    new Date(inv.createdAt).toLocaleDateString('ar-IQ'),
+    new Date(inv.createdAt).toLocaleDateString('ar-EG'),
   ])
   const csvContent = [headers, ...rows]
     .map((row) => row.map((cell) => `"${cell}"`).join(','))
@@ -167,33 +167,27 @@ export default function SalesReportPage() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-blue-500">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">إجمالي الفواتير</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.totalInvoices}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-teal-500">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">المبيعات النقدية IQD</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">المبيعات النقدية (ج.م)</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">
-              {summary.cashSalesIQD.toLocaleString('ar-IQ')}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-teal-400">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">المبيعات النقدية USD</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">
-              ${summary.cashSalesUSD.toLocaleString()}
+              {summary.cashSalesEGP.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
             </p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-orange-500">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">المبيعات الآجلة IQD</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">المبيعات الآجلة (ج.م)</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">
-              {summary.creditSalesIQD.toLocaleString('ar-IQ')}
+              {summary.creditSalesEGP.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
             </p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-green-500">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">الإجمالي بالدينار</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">الإجمالي (ج.م)</p>
             <p className="text-lg font-bold text-green-600 dark:text-green-400">
-              {summary.totalIQD.toLocaleString('ar-IQ')}
+              {summary.totalEGP.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
             </p>
           </div>
         </div>
@@ -239,10 +233,10 @@ export default function SalesReportPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                        {Number(inv.total).toLocaleString('ar-IQ')}
+                        {Number(inv.total).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-gray-500">
-                        {inv.currency === 'USD' ? 'دولار' : 'دينار'}
+                        {'ج.م'}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -252,7 +246,7 @@ export default function SalesReportPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {new Date(inv.createdAt).toLocaleDateString('ar-IQ')}
+                        {new Date(inv.createdAt).toLocaleDateString('ar-EG')}
                       </td>
                     </tr>
                   ))}

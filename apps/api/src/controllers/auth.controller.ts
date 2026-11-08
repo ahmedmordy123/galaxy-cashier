@@ -1,25 +1,31 @@
 import { Request, Response } from 'express'
 import { validateCredentials, generateAccessToken, generateRefreshToken, verifyRefreshToken, getUserById } from '../services/auth.service'
+import { sendRouteError } from '../utils/apiError'
 
 const COOKIE_NAME = '__refresh_token'
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  sameSite: 'strict' as const,
-  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  // Desktop Electron serves over HTTP — never require Secure cookies there
+  secure: process.env.COOKIE_SECURE === 'true',
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/',
 }
 
 export async function login(req: Request, res: Response) {
-  const { username, password } = req.body
-  const user = await validateCredentials(username, password)
-  if (!user) {
-    return res.status(401).json({ success: false, error: 'Invalid username or password' })
+  try {
+    const { username, password } = req.body
+    const user = await validateCredentials(username, password)
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' })
+    }
+    const accessToken = generateAccessToken(user)
+    const refreshToken = generateRefreshToken(user.id)
+    res.cookie(COOKIE_NAME, refreshToken, COOKIE_OPTIONS)
+    return res.json({ success: true, data: { accessToken, user } })
+  } catch (e) {
+    return sendRouteError(res, e, 'فشل تسجيل الدخول')
   }
-  const accessToken = generateAccessToken(user)
-  const refreshToken = generateRefreshToken(user.id)
-  res.cookie(COOKIE_NAME, refreshToken, COOKIE_OPTIONS)
-  return res.json({ success: true, data: { accessToken, user } })
 }
 
 export async function refresh(req: Request, res: Response) {

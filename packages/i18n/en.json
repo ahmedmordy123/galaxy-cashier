@@ -17,7 +17,14 @@
     "cashStatement": "Cash Statement",
     "reports": "Reports",
     "settings": "Settings",
-    "users": "Users"
+    "users": "Users",
+    "staffAdvances": "Staff advances"
+  },
+  "home": {
+    "newSale": "New sale",
+    "treasury": "Cash drawer",
+    "customers": "Customers",
+    "items": "Items"
   },
   "auth": {
     "login": "Login",
@@ -102,8 +109,8 @@
     "retailPrice": "Retail Price",
     "wholesalePrice": "Wholesale Price",
     "specialPrice": "Special Price",
-    "dollarPrice": "Dollar Price (USD)",
-    "dinarPrice": "Dinar Price (IQD)",
+    "dollarPrice": "Legacy price field",
+    "dinarPrice": "Legacy price field",
     "costPrice": "Cost Price",
     "stockQty": "Stock Quantity",
     "minimumStock": "Minimum Stock",
@@ -226,7 +233,18 @@
     "profitMargin": "Profit Margin",
     "top10Items": "Top 10 Profitable Items",
     "slowMoving": "Slow Moving Items",
-    "fastMoving": "Fast Moving Items"
+    "fastMoving": "Fast Moving Items",
+    "expenseAnalysis": "Expense analysis",
+    "inventoryAsOf": "Inventory as of date",
+    "periodCompare": "Period compare"
+  },
+  "pos": {
+    "shortcutConfirm": "F2 confirm",
+    "shortcutSearch": "F3 item search",
+    "shortcutDiscount": "F4 discount",
+    "shortcutPark": "F8 park",
+    "shortcutParked": "F9 parked",
+    "resumeParked": "Resume"
   },
   "settings": {
     "title": "Settings",
@@ -236,7 +254,7 @@
     "businessAddress": "Business Address",
     "businessPhone": "Business Phone",
     "logo": "Logo",
-    "exchangeRate": "Exchange Rate (IQD per USD)",
+    "exchangeRate": "Exchange Rate (EGP)",
     "exchangeRateHistory": "Exchange Rate History",
     "defaultCurrency": "Default Currency",
     "defaultPriceType": "Default Price Type",
@@ -262,6 +280,25 @@
     "deactivate": "Deactivate",
     "activate": "Activate"
   },
+  "staffAdvances": {
+    "title": "Staff advances",
+    "add": "Record advance",
+    "employee": "Employee",
+    "amount": "Amount",
+    "date": "Date",
+    "notes": "Note",
+    "month": "Month",
+    "total": "Total advances",
+    "count": "Withdrawals",
+    "day": "Day",
+    "recordedBy": "Recorded by",
+    "shift": "Shift",
+    "cancel": "Cancel advance",
+    "needShift": "Open a shift before recording an advance",
+    "drawerLine": "Staff advances",
+    "empty": "No advances this month",
+    "salaryHint": "Deducted from the drawer immediately and counted against salary at month end"
+  },
   "errors": {
     "required": "This field is required",
     "invalidEmail": "Invalid email address",
@@ -286,9 +323,11 @@
     "meter": "Meter"
   },
   "currencies": {
-    "USD": "US Dollar",
-    "IQD": "Iraqi Dinar",
-    "usdSymbol": "$",
-    "iqdSymbol": "IQD"
+    "USD": "Egyptian Pound",
+    "IQD": "Egyptian Pound",
+    "EGP": "Egyptian Pound",
+    "usdSymbol": "EGP",
+    "iqdSymbol": "EGP",
+    "egpSymbol": "EGP"
   }
 }

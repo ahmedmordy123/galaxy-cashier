@@ -1,19 +1,24 @@
-import { PrismaClient } from '@ims-pro/db'
 
-const prisma = new PrismaClient()
+import { prisma } from '../db/prisma'
+import {
+  localDayRange,
+  sumNetCashFromPayments,
+  sumCreditSalesInvoices,
+  sumNetSalesEGP,
+} from '../utils/salesAggregates'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DayData {
-  openingBalanceIQD: number
+  openingBalanceEGP: number
   openingBalanceUSD: number
-  cashSalesIQD: number
+  cashSalesEGP: number
   cashSalesUSD: number
   creditSales: number
   receipts: number
   disbursements: number
   expenses: number
-  closingBalanceIQD: number
+  closingBalanceEGP: number
   closingBalanceUSD: number
 }
 
@@ -41,11 +46,7 @@ interface RawExpenseRow {
 // ─── calculateDayData ─────────────────────────────────────────────────────────
 
 export async function calculateDayData(date: Date): Promise<DayData> {
-  const dayStart = new Date(date)
-  dayStart.setHours(0, 0, 0, 0)
-
-  const dayEnd = new Date(date)
-  dayEnd.setHours(23, 59, 59, 999)
+  const { start: dayStart, end: dayEnd } = localDayRange(date)
 
   const previousDay = new Date(date)
   previousDay.setDate(date.getDate() - 1)
@@ -61,63 +62,17 @@ export async function calculateDayData(date: Date): Promise<DayData> {
     },
   })
 
-  const openingBalanceIQD = prevStatement ? Number(prevStatement.closingBalanceIQD) : 0
+  const openingBalanceEGP = prevStatement ? Number(prevStatement.closingBalanceEGP) : 0
   const openingBalanceUSD = prevStatement ? Number(prevStatement.closingBalanceUSD) : 0
 
-  // Cash sales IQD
-  const cashSalesIQDRows = await prisma.$queryRaw<RawSalesRow[]>`
-    SELECT CAST(COALESCE(SUM(total), 0) AS TEXT) AS total_sum
-    FROM "SalesInvoice"
-    WHERE type = 'CASH'
-      AND currency = 'IQD'
-      AND status = 'CONFIRMED'
-      AND "createdAt" >= ${dayStart}
-      AND "createdAt" <= ${dayEnd}
-  `
-  const cashSalesIQD = Number(cashSalesIQDRows[0]?.total_sum ?? 0)
+  const { netCash: cashSalesEGP } = await sumNetCashFromPayments(prisma, dayStart, dayEnd)
+  const cashSalesUSD = 0
 
-  // Cash sales USD
-  const cashSalesUSDRows = await prisma.$queryRaw<RawSalesRow[]>`
-    SELECT CAST(COALESCE(SUM(total), 0) AS TEXT) AS total_sum
-    FROM "SalesInvoice"
-    WHERE type = 'CASH'
-      AND currency = 'USD'
-      AND status = 'CONFIRMED'
-      AND "createdAt" >= ${dayStart}
-      AND "createdAt" <= ${dayEnd}
-  `
-  const cashSalesUSD = Number(cashSalesUSDRows[0]?.total_sum ?? 0)
+  const creditSales = await sumCreditSalesInvoices(prisma, dayStart, dayEnd)
 
-  // Credit sales (all currencies converted to IQD)
-  const creditSalesRows = await prisma.$queryRaw<RawSalesRow[]>`
-    SELECT CAST(COALESCE(
-      SUM(
-        CASE
-          WHEN currency = 'USD' THEN total * "exchangeRate"
-          ELSE total
-        END
-      ),
-      0
-    ) AS TEXT) AS total_sum
-    FROM "SalesInvoice"
-    WHERE type = 'CREDIT'
-      AND status = 'CONFIRMED'
-      AND "createdAt" >= ${dayStart}
-      AND "createdAt" <= ${dayEnd}
-  `
-  const creditSales = Number(creditSalesRows[0]?.total_sum ?? 0)
-
-  // Receipts (RECEIPT vouchers → IQD equivalent)
+  // Receipts
   const receiptsRows = await prisma.$queryRaw<RawVoucherRow[]>`
-    SELECT CAST(COALESCE(
-      SUM(
-        CASE
-          WHEN currency = 'USD' THEN amount * "exchangeRate"
-          ELSE amount
-        END
-      ),
-      0
-    ) AS TEXT) AS total_iqd
+    SELECT CAST(COALESCE(SUM(amount), 0) AS TEXT) AS total_iqd
     FROM "PaymentVoucher"
     WHERE type = 'RECEIPT'
       AND "createdAt" >= ${dayStart}
@@ -125,17 +80,9 @@ export async function calculateDayData(date: Date): Promise<DayData> {
   `
   const receipts = Number(receiptsRows[0]?.total_iqd ?? 0)
 
-  // Disbursements (DISBURSEMENT vouchers → IQD equivalent)
+  // Disbursements
   const disbursementsRows = await prisma.$queryRaw<RawVoucherRow[]>`
-    SELECT CAST(COALESCE(
-      SUM(
-        CASE
-          WHEN currency = 'USD' THEN amount * "exchangeRate"
-          ELSE amount
-        END
-      ),
-      0
-    ) AS TEXT) AS total_iqd
+    SELECT CAST(COALESCE(SUM(amount), 0) AS TEXT) AS total_iqd
     FROM "PaymentVoucher"
     WHERE type = 'DISBURSEMENT'
       AND "createdAt" >= ${dayStart}
@@ -143,17 +90,9 @@ export async function calculateDayData(date: Date): Promise<DayData> {
   `
   const disbursements = Number(disbursementsRows[0]?.total_iqd ?? 0)
 
-  // Expenses — use stored exchangeRate on each expense record
+  // Expenses
   const expensesRows = await prisma.$queryRaw<RawExpenseRow[]>`
-    SELECT CAST(COALESCE(
-      SUM(
-        CASE
-          WHEN currency = 'USD' THEN amount * "exchangeRate"
-          ELSE amount
-        END
-      ),
-      0
-    ) AS TEXT) AS total_iqd
+    SELECT CAST(COALESCE(SUM(amount), 0) AS TEXT) AS total_iqd
     FROM "Expense"
     WHERE "isActive" = true
       AND date >= ${dayStart}
@@ -161,20 +100,20 @@ export async function calculateDayData(date: Date): Promise<DayData> {
   `
   const expenses = Number(expensesRows[0]?.total_iqd ?? 0)
 
-  // Closing balances
-  const closingBalanceIQD = openingBalanceIQD + cashSalesIQD + receipts - disbursements - expenses
-  const closingBalanceUSD = openingBalanceUSD + cashSalesUSD
+  // Closing balances in EGP (openingBalanceEGP / cashSalesEGP / closingBalanceEGP)
+  const closingBalanceEGP = openingBalanceEGP + cashSalesEGP + receipts - disbursements - expenses
+  const closingBalanceUSD = openingBalanceUSD
 
   return {
-    openingBalanceIQD,
+    openingBalanceEGP,
     openingBalanceUSD,
-    cashSalesIQD,
+    cashSalesEGP,
     cashSalesUSD,
     creditSales,
     receipts,
     disbursements,
     expenses,
-    closingBalanceIQD,
+    closingBalanceEGP,
     closingBalanceUSD,
   }
 }
@@ -199,15 +138,15 @@ export async function getTodayStatement(): Promise<StatementResult> {
       id: saved.id,
       isClosed: true,
       date: today.toISOString().slice(0, 10),
-      openingBalanceIQD: Number(saved.openingBalanceIQD),
+      openingBalanceEGP: Number(saved.openingBalanceEGP),
       openingBalanceUSD: Number(saved.openingBalanceUSD),
-      cashSalesIQD: Number(saved.cashSalesIQD),
+      cashSalesEGP: Number(saved.cashSalesEGP),
       cashSalesUSD: Number(saved.cashSalesUSD),
       creditSales: Number(saved.creditSales),
       receipts: Number(saved.receipts),
       disbursements: Number(saved.disbursements),
       expenses: Number(saved.expenses),
-      closingBalanceIQD: Number(saved.closingBalanceIQD),
+      closingBalanceEGP: Number(saved.closingBalanceEGP),
       closingBalanceUSD: Number(saved.closingBalanceUSD),
       notes: saved.notes,
     }
@@ -242,15 +181,15 @@ export async function getStatementByDate(dateStr: string): Promise<StatementResu
       id: saved.id,
       isClosed: saved.isClosed,
       date: dateStr,
-      openingBalanceIQD: Number(saved.openingBalanceIQD),
+      openingBalanceEGP: Number(saved.openingBalanceEGP),
       openingBalanceUSD: Number(saved.openingBalanceUSD),
-      cashSalesIQD: Number(saved.cashSalesIQD),
+      cashSalesEGP: Number(saved.cashSalesEGP),
       cashSalesUSD: Number(saved.cashSalesUSD),
       creditSales: Number(saved.creditSales),
       receipts: Number(saved.receipts),
       disbursements: Number(saved.disbursements),
       expenses: Number(saved.expenses),
-      closingBalanceIQD: Number(saved.closingBalanceIQD),
+      closingBalanceEGP: Number(saved.closingBalanceEGP),
       closingBalanceUSD: Number(saved.closingBalanceUSD),
       notes: saved.notes,
     }
@@ -276,29 +215,29 @@ export async function closeStatement(notes?: string) {
     where: { date: today },
     create: {
       date: today,
-      openingBalanceIQD: calculated.openingBalanceIQD,
+      openingBalanceEGP: calculated.openingBalanceEGP,
       openingBalanceUSD: calculated.openingBalanceUSD,
-      cashSalesIQD: calculated.cashSalesIQD,
+      cashSalesEGP: calculated.cashSalesEGP,
       cashSalesUSD: calculated.cashSalesUSD,
       creditSales: calculated.creditSales,
       receipts: calculated.receipts,
       disbursements: calculated.disbursements,
       expenses: calculated.expenses,
-      closingBalanceIQD: calculated.closingBalanceIQD,
+      closingBalanceEGP: calculated.closingBalanceEGP,
       closingBalanceUSD: calculated.closingBalanceUSD,
       isClosed: true,
       notes: notes ?? null,
     },
     update: {
-      openingBalanceIQD: calculated.openingBalanceIQD,
+      openingBalanceEGP: calculated.openingBalanceEGP,
       openingBalanceUSD: calculated.openingBalanceUSD,
-      cashSalesIQD: calculated.cashSalesIQD,
+      cashSalesEGP: calculated.cashSalesEGP,
       cashSalesUSD: calculated.cashSalesUSD,
       creditSales: calculated.creditSales,
       receipts: calculated.receipts,
       disbursements: calculated.disbursements,
       expenses: calculated.expenses,
-      closingBalanceIQD: calculated.closingBalanceIQD,
+      closingBalanceEGP: calculated.closingBalanceEGP,
       closingBalanceUSD: calculated.closingBalanceUSD,
       isClosed: true,
       notes: notes ?? null,
@@ -309,15 +248,15 @@ export async function closeStatement(notes?: string) {
     id: saved.id,
     isClosed: saved.isClosed,
     date: today.toISOString().slice(0, 10),
-    openingBalanceIQD: Number(saved.openingBalanceIQD),
+    openingBalanceEGP: Number(saved.openingBalanceEGP),
     openingBalanceUSD: Number(saved.openingBalanceUSD),
-    cashSalesIQD: Number(saved.cashSalesIQD),
+    cashSalesEGP: Number(saved.cashSalesEGP),
     cashSalesUSD: Number(saved.cashSalesUSD),
     creditSales: Number(saved.creditSales),
     receipts: Number(saved.receipts),
     disbursements: Number(saved.disbursements),
     expenses: Number(saved.expenses),
-    closingBalanceIQD: Number(saved.closingBalanceIQD),
+    closingBalanceEGP: Number(saved.closingBalanceEGP),
     closingBalanceUSD: Number(saved.closingBalanceUSD),
     notes: saved.notes,
   }

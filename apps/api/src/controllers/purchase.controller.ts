@@ -52,6 +52,9 @@ export async function createInvoice(req: Request, res: Response) {
     res.status(201).json({ success: true, data: invoice })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'فشل في إنشاء الفاتورة'
+    if (msg === 'SUPPLIER_REF_DUPLICATE') {
+      return res.status(409).json({ success: false, message: 'رقم فاتورة المورد مكرّر لنفس المورد' })
+    }
     res.status(500).json({ success: false, message: msg })
   }
 }

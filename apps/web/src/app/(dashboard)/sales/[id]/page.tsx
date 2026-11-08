@@ -3,11 +3,23 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { salesService } from '@/services/sales.service'
+import api from '@/lib/api'
+import { formatMoney, formatNumber } from '@/lib/currency'
+import { formatDateTime } from '@/lib/dates'
 
-type InvoiceStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
+type EtaDocStatus = 'PENDING' | 'SUBMITTED' | 'RETRY' | 'REJECTED'
+
+const ETA_LABELS: Record<string, string> = {
+  PENDING: 'في الطابور',
+  SUBMITTED: 'مُرسَل للضرائب',
+  RETRY: 'إعادة محاولة',
+  REJECTED: 'مرفوض',
+}
+
+type InvoiceStatus = 'DRAFT' | 'PARKED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 type PaymentType = 'CASH' | 'CREDIT'
 type PriceType = 'RETAIL' | 'WHOLESALE' | 'SPECIAL' | 'DOLLAR' | 'DINAR'
-type Currency = 'USD' | 'IQD'
+type Currency = 'USD' | 'EGP'
 
 interface InvoiceItem {
   id: string
@@ -32,6 +44,7 @@ interface Invoice {
   exchangeRate: number
   subtotal: number
   discount: number
+  tax: number
   total: number
   amountPaid: number
   balance: number
@@ -45,6 +58,7 @@ interface Invoice {
 
 const STATUS_LABELS: Record<InvoiceStatus, string> = {
   DRAFT: 'مسودة',
+  PARKED: 'معلّقة',
   CONFIRMED: 'مؤكدة',
   CANCELLED: 'ملغاة',
   RETURNED: 'مرتجعة',
@@ -52,17 +66,10 @@ const STATUS_LABELS: Record<InvoiceStatus, string> = {
 
 const STATUS_CLASSES: Record<InvoiceStatus, string> = {
   DRAFT: 'bg-gray-100 text-gray-700',
+  PARKED: 'bg-amber-100 text-amber-800',
   CONFIRMED: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
   RETURNED: 'bg-amber-100 text-amber-700',
-}
-
-const PRICE_TYPE_LABELS: Record<PriceType, string> = {
-  RETAIL: 'مفرد',
-  WHOLESALE: 'جملة',
-  SPECIAL: 'خاص',
-  DOLLAR: 'دولار',
-  DINAR: 'دينار',
 }
 
 const PAYMENT_LABELS: Record<PaymentType, string> = {
@@ -80,6 +87,9 @@ export default function SalesInvoiceDetailPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
+  const [showPayModal, setShowPayModal] = useState(false)
+  const [paidAmount, setPaidAmount] = useState(0)
+  const [etaDoc, setEtaDoc] = useState<{ status: string; uuid?: string | null; lastError?: string | null } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -87,6 +97,16 @@ export default function SalesInvoiceDetailPage() {
     try {
       const res = await salesService.getById(id)
       setInvoice(res.data)
+      if (res.data?.status === 'CONFIRMED' || res.data?.status === 'RETURNED') {
+        try {
+          const er = await api.get(`/api/eta/invoice/${id}`)
+          setEtaDoc(er.data?.data ?? null)
+        } catch {
+          setEtaDoc(null)
+        }
+      } else {
+        setEtaDoc(null)
+      }
     } catch {
       setError('فشل في تحميل الفاتورة')
     } finally {
@@ -96,17 +116,41 @@ export default function SalesInvoiceDetailPage() {
 
   useEffect(() => { load() }, [load])
 
-  async function handleConfirm() {
+  async function doConfirm(amountPaid?: number) {
+    setShowPayModal(false)
     setActionLoading(true)
     setActionError('')
     try {
-      await salesService.confirm(id)
+      const inv = invoice!
+      const total = Number(inv.total)
+      const payments: Array<{ method: string; amount: number }> = []
+      if (inv.type === 'CREDIT') {
+        payments.push({ method: 'CREDIT', amount: total })
+      } else {
+        const paid = amountPaid ?? total
+        payments.push({ method: 'CASH', amount: paid })
+      }
+      await salesService.confirm(id, {
+        amountPaid: inv.type === 'CASH' ? (amountPaid ?? total) : 0,
+        payments,
+      })
       await load()
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } }
       setActionError(axiosErr.response?.data?.error ?? 'فشل في تأكيد الفاتورة')
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  function handleConfirmClick() {
+    if (!invoice) return
+    setActionError('')
+    if (invoice.type === 'CASH') {
+      setPaidAmount(Math.ceil(Number(invoice.total)))
+      setShowPayModal(true)
+    } else {
+      doConfirm()
     }
   }
 
@@ -162,6 +206,11 @@ export default function SalesInvoiceDetailPage() {
   }
 
   const discountAmount = Number(invoice.subtotal) * (Number(invoice.discount) / 100)
+  const isEditable = invoice.status === 'DRAFT' || invoice.status === 'PARKED'
+  const statusKey = (STATUS_LABELS as Record<string, string>)[invoice.status]
+    ? (invoice.status as InvoiceStatus)
+    : 'DRAFT'
+  const change = paidAmount - Number(invoice.total)
 
   return (
     <div dir="rtl" className="max-w-4xl mx-auto">
@@ -176,14 +225,22 @@ export default function SalesInvoiceDetailPage() {
               {invoice.invoiceNumber}
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              {new Date(invoice.createdAt).toLocaleString('ar-IQ')}
+              {formatDateTime(invoice.createdAt)}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_CLASSES[invoice.status]}`}>
-            {STATUS_LABELS[invoice.status]}
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_CLASSES[statusKey] ?? STATUS_CLASSES.DRAFT}`}>
+            {STATUS_LABELS[statusKey] ?? invoice.status}
           </span>
+          {etaDoc && (
+            <span
+              className="px-3 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+              title={etaDoc.lastError ?? undefined}
+            >
+              ETA: {ETA_LABELS[etaDoc.status as EtaDocStatus] ?? etaDoc.status}
+            </span>
+          )}
           <button
             onClick={() => window.open(`/sales/${invoice.id}/print`, '_blank')}
             className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm flex items-center gap-1"
@@ -211,22 +268,6 @@ export default function SalesInvoiceDetailPage() {
             <span className="font-medium text-gray-900 dark:text-white">{PAYMENT_LABELS[invoice.type]}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">نوع السعر</span>
-            <span className="font-medium text-gray-900 dark:text-white">{PRICE_TYPE_LABELS[invoice.priceType]}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">العملة</span>
-            <span className="font-medium text-gray-900 dark:text-white">
-              {invoice.currency === 'USD' ? 'دولار أمريكي' : 'دينار عراقي'}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">سعر الصرف</span>
-            <span className="font-medium text-gray-900 dark:text-white">
-              {Number(invoice.exchangeRate).toLocaleString('ar-IQ')} IQD
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
             <span className="text-gray-500">أنشأ بواسطة</span>
             <span className="font-medium text-gray-900 dark:text-white">{invoice.createdBy.name}</span>
           </div>
@@ -243,21 +284,29 @@ export default function SalesInvoiceDetailPage() {
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">المجموع الفرعي</span>
             <span className="font-medium text-gray-900 dark:text-white">
-              {Number(invoice.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}
+              {formatMoney(invoice.subtotal)}
             </span>
           </div>
           {Number(invoice.discount) > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">الخصم ({Number(invoice.discount)}%)</span>
               <span className="font-medium text-red-500">
-                - {discountAmount.toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}
+                - {formatMoney(discountAmount)}
+              </span>
+            </div>
+          )}
+          {invoice.tax != null && Number(invoice.tax) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">ض.ق.م</span>
+              <span className="font-medium text-gray-900 dark:text-white">
+                {formatMoney(invoice.tax)}
               </span>
             </div>
           )}
           <div className="flex justify-between text-base font-bold border-t border-gray-100 dark:border-gray-700 pt-2">
             <span className="text-gray-700 dark:text-gray-300">الإجمالي</span>
             <span className="text-gray-900 dark:text-white">
-              {Number(invoice.total).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}
+              {formatMoney(invoice.total)}
             </span>
           </div>
           {invoice.status === 'CONFIRMED' && invoice.type === 'CASH' && Number(invoice.amountPaid) > 0 && (
@@ -265,14 +314,14 @@ export default function SalesInvoiceDetailPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">المبلغ المستلم</span>
                 <span className="font-medium text-green-600 dark:text-green-400">
-                  {Number(invoice.amountPaid).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}
+                  {formatMoney(invoice.amountPaid)}
                 </span>
               </div>
               {Number(invoice.amountPaid) > Number(invoice.total) && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">الباقي للعميل</span>
                   <span className="font-medium text-blue-600 dark:text-blue-400">
-                    {(Number(invoice.amountPaid) - Number(invoice.total)).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}
+                    {formatMoney(Number(invoice.amountPaid) - Number(invoice.total), 3)}
                   </span>
                 </div>
               )}
@@ -282,7 +331,7 @@ export default function SalesInvoiceDetailPage() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">الرصيد المتبقي</span>
               <span className={`font-medium ${Number(invoice.balance) > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                {Number(invoice.balance).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}
+                {formatMoney(invoice.balance)}
               </span>
             </div>
           )}
@@ -320,13 +369,13 @@ export default function SalesInvoiceDetailPage() {
                 </td>
                 <td className="px-4 py-3 text-gray-500 font-mono text-xs">{line.item.barcode ?? '—'}</td>
                 <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300">
-                  {Number(line.quantity).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                  {formatNumber(line.quantity)}
                 </td>
                 <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300">
-                  {Number(line.unitPrice).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                  {formatMoney(line.unitPrice)}
                 </td>
                 <td className="px-4 py-3 text-center font-medium text-gray-900 dark:text-white">
-                  {Number(line.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                  {formatMoney(line.subtotal)}
                 </td>
               </tr>
             ))}
@@ -335,14 +384,21 @@ export default function SalesInvoiceDetailPage() {
       </div>
 
       {/* Action buttons */}
-      {invoice.status === 'DRAFT' && (
-        <div className="flex gap-3">
+      {isEditable && (
+        <div className="flex gap-3 flex-wrap">
           <button
-            onClick={handleConfirm}
+            onClick={handleConfirmClick}
             disabled={actionLoading}
             className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium text-sm"
           >
-            {actionLoading ? 'جار التأكيد...' : 'تأكيد الفاتورة'}
+            {actionLoading ? 'جار التأكيد...' : 'إكمال البيع / تأكيد'}
+          </button>
+          <button
+            onClick={() => router.push(`/sales/new?resumeId=${invoice.id}`)}
+            disabled={actionLoading}
+            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm"
+          >
+            تعديل الفاتورة
           </button>
           <button
             onClick={handleCancel}
@@ -351,6 +407,55 @@ export default function SalesInvoiceDetailPage() {
           >
             {actionLoading ? 'جار الإلغاء...' : 'إلغاء الفاتورة'}
           </button>
+        </div>
+      )}
+
+      {showPayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div dir="rtl" className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">تسوية الدفع النقدي</h2>
+            <div className="space-y-3 mb-5">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">المبلغ المستحق</span>
+                <span className="font-bold text-gray-900 dark:text-white">{formatMoney(invoice.total)}</span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">المبلغ المستلم</label>
+                <input
+                  type="number"
+                  min={Number(invoice.total)}
+                  step="1"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(Number(e.target.value))}
+                  autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-lg font-bold text-center"
+                />
+              </div>
+              {change > 0 && (
+                <div className="flex justify-between text-sm text-blue-600">
+                  <span>الباقي للعميل</span>
+                  <span className="font-bold">{formatMoney(change)}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPayModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 text-sm"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={paidAmount < Number(invoice.total) || actionLoading}
+                onClick={() => doConfirm(paidAmount)}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm disabled:opacity-50"
+              >
+                تأكيد الدفع
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

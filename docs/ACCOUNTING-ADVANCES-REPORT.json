@@ -1,0 +1,179 @@
+{
+  "at": "2026-11-05T18:51:16.515Z",
+  "tag": "ADV-MW3WIUK9",
+  "formula": "expected = opening + cashIn - refunds + receipts - disbursements - expenses - staffAdvances",
+  "pass": 28,
+  "fail": 0,
+  "total": 28,
+  "adminId": "cmw3veqew0000v8kerk0fdjox",
+  "steps": [
+    {
+      "name": "create-employee-A",
+      "expected": "id",
+      "actual": "cmw3wixje000112997rf4hsh3",
+      "ok": true
+    },
+    {
+      "name": "create-employee-B",
+      "expected": "id",
+      "actual": "cmw3wixtd000212998zt58q6u",
+      "ok": true
+    },
+    {
+      "name": "open-shift",
+      "expected": 201,
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "1 expected == opening",
+      "expected": 1000,
+      "actual": 1000,
+      "ok": true
+    },
+    {
+      "name": "create-advance-A1",
+      "expected": 201,
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "2 expected after A=100",
+      "expected": 900,
+      "actual": 900,
+      "ok": true
+    },
+    {
+      "name": "create-advance-A2",
+      "expected": 201,
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "3 expected after A+50",
+      "expected": 850,
+      "actual": 850,
+      "ok": true
+    },
+    {
+      "name": "3 A month total",
+      "expected": 150,
+      "actual": 150,
+      "ok": true
+    },
+    {
+      "name": "3 A same-day total",
+      "expected": 150,
+      "actual": 150,
+      "ok": true
+    },
+    {
+      "name": "create-expense-20",
+      "expected": "201/200",
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "4 expected after expense 20",
+      "expected": 830,
+      "actual": 830,
+      "ok": true
+    },
+    {
+      "name": "4 advances still 150",
+      "expected": 150,
+      "actual": 150,
+      "ok": true
+    },
+    {
+      "name": "4 expenses 20",
+      "expected": 20,
+      "actual": 20,
+      "ok": true
+    },
+    {
+      "name": "create-item",
+      "expected": "id",
+      "actual": "cmw3wiybh000d1299rpelldej",
+      "ok": true
+    },
+    {
+      "name": "5 expected after cash sale 10",
+      "expected": 840,
+      "actual": 840,
+      "ok": true
+    },
+    {
+      "name": "5 advances still deducted",
+      "expected": 150,
+      "actual": 150,
+      "ok": true
+    },
+    {
+      "name": "create-advance-B",
+      "expected": 201,
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "8 expected after B=30",
+      "expected": 810,
+      "actual": 810,
+      "ok": true
+    },
+    {
+      "name": "8 A ledger isolated",
+      "expected": 150,
+      "actual": 150,
+      "ok": true
+    },
+    {
+      "name": "8 B ledger isolated",
+      "expected": 30,
+      "actual": 30,
+      "ok": true
+    },
+    {
+      "name": "6 delete A2",
+      "expected": 200,
+      "actual": 200,
+      "ok": true
+    },
+    {
+      "name": "6 expected restored +50",
+      "expected": 860,
+      "actual": 860,
+      "ok": true
+    },
+    {
+      "name": "6 A month after delete",
+      "expected": 100,
+      "actual": 100,
+      "ok": true
+    },
+    {
+      "name": "7 close expected",
+      "expected": 860,
+      "actual": 860,
+      "ok": true
+    },
+    {
+      "name": "7 cashDifference == 0",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "summary A",
+      "expected": 100,
+      "actual": 100,
+      "ok": true
+    },
+    {
+      "name": "summary B",
+      "expected": 30,
+      "actual": 30,
+      "ok": true
+    }
+  ]
+}

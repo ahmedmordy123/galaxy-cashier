@@ -3,8 +3,20 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { itemsService } from '@/services/items.service'
+import { useAuth } from '@/hooks/useAuth'
 import { CameraScanner, ScanResult } from '@/components/barcode/CameraScanner'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
+
+type PriceField = 'costPrice' | 'retailPrice' | 'wholesalePrice' | 'specialPrice'
+type BulkScope = 'selected' | 'filtered' | 'all'
+type BulkMode = 'percent' | 'amount' | 'set'
+
+const PRICE_FIELD_LABELS: Record<PriceField, string> = {
+  costPrice: 'سعر التكلفة',
+  retailPrice: 'سعر المفرد',
+  wholesalePrice: 'سعر الجملة',
+  specialPrice: 'سعر خاص',
+}
 
 interface Item {
   id: string
@@ -33,6 +45,10 @@ interface ValidationPreview {
 function ItemsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
+  const canManage = user?.role === 'ADMIN' || user?.role === 'MANAGER'
+  const canMutateItems =
+    user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'STAFF'
   const [items, setItems] = useState<Item[]>([])
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
@@ -54,6 +70,16 @@ function ItemsPageInner() {
   const [validateLoading, setValidateLoading] = useState(false)
   const [validationPreview, setValidationPreview] = useState<ValidationPreview | null>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkScope, setBulkScope] = useState<BulkScope>('selected')
+  const [bulkMode, setBulkMode] = useState<BulkMode>('percent')
+  const [bulkValue, setBulkValue] = useState<number>(0)
+  const [bulkFields, setBulkFields] = useState<PriceField[]>(['retailPrice'])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState('')
+  const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null)
 
   const hasMore = items.length < total
 
@@ -79,6 +105,125 @@ function ItemsPageInner() {
   }, [search])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [search])
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAllOnPage() {
+    if (items.every((i) => selectedIds.has(i.id))) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        items.forEach((i) => next.delete(i.id))
+        return next
+      })
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        items.forEach((i) => next.add(i.id))
+        return next
+      })
+    }
+  }
+
+  async function handleDeleteItem(item: Item) {
+    if (!canManage) return
+    const ok = window.confirm(`حذف الصنف «${item.name_ar}»؟\n(إخفاء من القائمة — لا يُحذف من الفواتير القديمة)`)
+    if (!ok) return
+    setDeleteLoadingId(item.id)
+    try {
+      await itemsService.delete(item.id)
+      setItems((prev) => prev.filter((i) => i.id !== item.id))
+      setTotal((t) => Math.max(0, t - 1))
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(item.id)
+        return next
+      })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'فشل الحذف'
+      alert(msg)
+    } finally {
+      setDeleteLoadingId(null)
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (!canManage) return
+    const scope = bulkScope
+    const countLabel =
+      scope === 'selected' ? selectedIds.size :
+      scope === 'filtered' ? `نتائج البحث (${total})` : `كل الأصناف (${total})`
+    if (scope === 'selected' && selectedIds.size === 0) {
+      setBulkMsg('حدد أصنافاً أولاً')
+      return
+    }
+    if (!window.confirm(`حذف ${countLabel}؟`)) return
+    setBulkLoading(true)
+    setBulkMsg('')
+    try {
+      await itemsService.bulk({
+        action: 'delete',
+        scope,
+        itemIds: scope === 'selected' ? [...selectedIds] : undefined,
+        search: scope === 'filtered' ? search : undefined,
+      })
+      setBulkMsg('تم الحذف')
+      setSelectedIds(new Set())
+      load()
+    } catch (err: unknown) {
+      setBulkMsg((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'فشل الحذف')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  async function handleBulkAdjust(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canManage) return
+    if (bulkFields.length === 0) {
+      setBulkMsg('اختر حقول الأسعار')
+      return
+    }
+    if (bulkScope === 'selected' && selectedIds.size === 0) {
+      setBulkMsg('حدد أصنافاً أو غيّر النطاق إلى «كل نتائج البحث»')
+      return
+    }
+    setBulkLoading(true)
+    setBulkMsg('')
+    try {
+      const res = await itemsService.bulk({
+        action: 'adjustPrices',
+        scope: bulkScope,
+        itemIds: bulkScope === 'selected' ? [...selectedIds] : undefined,
+        search: bulkScope === 'filtered' ? search : undefined,
+        fields: bulkFields,
+        mode: bulkMode,
+        value: bulkValue,
+      })
+      setBulkMsg(`تم تحديث ${res.data?.updated ?? 0} صنف`)
+      load()
+    } catch (err: unknown) {
+      setBulkMsg((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'فشل التعديل')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  function toggleBulkField(field: PriceField) {
+    setBulkFields((prev) =>
+      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field],
+    )
+  }
 
   // Append next page when sentinel scrolls into view
   useEffect(() => {
@@ -135,8 +280,8 @@ function ItemsPageInner() {
   }
 
   function downloadTemplate() {
-    const header = 'name_ar,name_en,barcode,unit,costPrice,retailPrice,wholesalePrice,specialPrice,dollarPrice,dinarPrice,stockQty,minimumStock'
-    const example = 'تفاحة حمراء,Red Apple,1234567890,piece,500,700,600,650,0.5,700,50,5'
+    const header = 'name_ar,name_en,barcode,unit,costPrice,retailPrice,wholesalePrice,specialPrice,stockQty,minimumStock'
+    const example = 'تلفزيون سامسونج,Samsung TV,1234567890,piece,8000,12000,11000,10500,5,2'
     const blob = new Blob(['﻿' + header + '\n' + example], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -185,38 +330,42 @@ function ItemsPageInner() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">الأصناف</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => { setScanError(''); setShowScanner(true) }}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            مسح لإضافة / تعديل
-          </button>
-          <button
-            onClick={downloadTemplate}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
-            title="تحميل قالب الاستيراد"
-          >
-            📥 قالب
-          </button>
-          <button
-            onClick={() => importRef.current?.click()}
-            disabled={importLoading || validateLoading}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors text-sm font-medium"
-          >
-            {validateLoading ? 'جار التحقق...' : importLoading ? 'جار الاستيراد...' : '📤 استيراد Excel/CSV'}
-          </button>
-          <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
-          <button
-            onClick={() => router.push('/items/new')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-          >
-            + إضافة صنف
-          </button>
+          {canMutateItems && (
+            <>
+              <button
+                onClick={() => { setScanError(''); setShowScanner(true) }}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                مسح لإضافة / تعديل
+              </button>
+              <button
+                onClick={downloadTemplate}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+                title="تحميل قالب الاستيراد"
+              >
+                📥 قالب
+              </button>
+              <button
+                onClick={() => importRef.current?.click()}
+                disabled={importLoading || validateLoading}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors text-sm font-medium"
+              >
+                {validateLoading ? 'جار التحقق...' : importLoading ? 'جار الاستيراد...' : '📤 استيراد Excel/CSV'}
+              </button>
+              <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
+              <button
+                onClick={() => router.push('/items/new')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                + إضافة صنف
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -250,7 +399,7 @@ function ItemsPageInner() {
         </div>
       )}
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <input
           type="text"
           placeholder="بحث بالاسم أو الباركود..."
@@ -258,17 +407,111 @@ function ItemsPageInner() {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full max-w-sm px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => setBulkOpen((o) => !o)}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+          >
+            {bulkOpen ? 'إخفاء التعديل الجماعي' : 'تعديل جماعي / حذف'}
+            {selectedIds.size > 0 && ` (${selectedIds.size} محدد)`}
+          </button>
+        )}
       </div>
+
+      {canManage && bulkOpen && (
+        <div className="mb-4 bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 space-y-4">
+          <h2 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">تعديل أسعار جماعي</h2>
+          <form onSubmit={handleBulkAdjust} className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-gray-600 dark:text-gray-400 w-full sm:w-auto sm:leading-8">الأسعار:</span>
+              {(Object.keys(PRICE_FIELD_LABELS) as PriceField[]).map((f) => (
+                <label key={f} className="inline-flex items-center gap-1.5 text-sm px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer">
+                  <input type="checkbox" checked={bulkFields.includes(f)} onChange={() => toggleBulkField(f)} />
+                  {PRICE_FIELD_LABELS[f]}
+                </label>
+              ))}
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <label className="text-sm">
+                <span className="block text-xs text-gray-500 mb-1">نوع التعديل</span>
+                <select
+                  value={bulkMode}
+                  onChange={(e) => setBulkMode(e.target.value as BulkMode)}
+                  className="w-full border rounded-lg px-2 py-2 dark:bg-gray-800 dark:border-gray-600"
+                >
+                  <option value="percent">زيادة / نقص بنسبة %</option>
+                  <option value="amount">زيادة / نقص مبلغ (ج.م)</option>
+                  <option value="set">تعيين سعر ثابت</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="block text-xs text-gray-500 mb-1">
+                  {bulkMode === 'percent' ? 'النسبة (سالب = نقص)' : bulkMode === 'amount' ? 'المبلغ (سالب = نقص)' : 'السعر الجديد'}
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={bulkValue}
+                  onChange={(e) => setBulkValue(Number(e.target.value))}
+                  className="w-full border rounded-lg px-2 py-2 dark:bg-gray-800 dark:border-gray-600"
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="block text-xs text-gray-500 mb-1">يطبّق على</span>
+                <select
+                  value={bulkScope}
+                  onChange={(e) => setBulkScope(e.target.value as BulkScope)}
+                  className="w-full border rounded-lg px-2 py-2 dark:bg-gray-800 dark:border-gray-600"
+                >
+                  <option value="selected">الأصناف المحددة فقط ({selectedIds.size})</option>
+                  <option value="filtered">كل نتائج البحث الحالية ({total})</option>
+                  <option value="all">كل الأصناف النشطة ({total}+)</option>
+                </select>
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <button
+                type="submit"
+                disabled={bulkLoading}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {bulkLoading ? 'جار التطبيق...' : 'تطبيق على الأسعار'}
+              </button>
+              <button
+                type="button"
+                disabled={bulkLoading}
+                onClick={handleBulkDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+              >
+                حذف حسب النطاق
+              </button>
+            </div>
+          </form>
+          {bulkMsg && <p className="text-sm text-indigo-800 dark:text-indigo-200">{bulkMsg}</p>}
+          <p className="text-xs text-gray-500">مثال: نقص 10% → نوع «نسبة» والقيمة -10. زيادة 50 ج.م على المفرد والجملة → حدّد الحقلين ونوع «مبلغ» والقيمة 50.</p>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
         {loading ? (
-          <TableSkeleton cols={6} />
+          <TableSkeleton cols={canManage ? 7 : 6} />
         ) : items.length === 0 ? (
           <div className="p-8 text-center text-gray-500">لا توجد أصناف</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
               <tr>
+                {canManage && (
+                  <th className="px-3 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label="تحديد الكل في الصفحة"
+                      checked={items.length > 0 && items.every((i) => selectedIds.has(i.id))}
+                      onChange={toggleSelectAllOnPage}
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3 text-right font-medium">الباركود</th>
                 <th className="px-4 py-3 text-right font-medium">الاسم</th>
                 <th className="px-4 py-3 text-right font-medium">الفئة</th>
@@ -280,6 +523,16 @@ function ItemsPageInner() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {items.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                  {canManage && (
+                    <td className="px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onChange={() => toggleSelect(item.id)}
+                        aria-label={`تحديد ${item.name_ar}`}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">{item.barcode || '—'}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900 dark:text-white">{item.name_ar}</div>
@@ -290,19 +543,34 @@ function ItemsPageInner() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`font-medium ${Number(item.stockQty) <= Number(item.minimumStock) && Number(item.minimumStock) > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                      {Number(item.stockQty).toLocaleString('ar-IQ')}
+                      {Number(item.stockQty).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-900 dark:text-white">
-                    {Number(item.retailPrice).toLocaleString('ar-IQ')}
+                    {Number(item.retailPrice).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => router.push(`/items/${item.id}/edit`)}
-                      className="text-blue-600 hover:underline text-sm px-2 py-1"
-                    >
-                      تعديل
-                    </button>
+                    <div className="flex flex-wrap gap-1">
+                      {canMutateItems && (
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/items/${item.id}/edit`)}
+                          className="text-blue-600 hover:underline text-sm px-2 py-1"
+                        >
+                          تعديل
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          type="button"
+                          disabled={deleteLoadingId === item.id}
+                          onClick={() => handleDeleteItem(item)}
+                          className="text-red-600 hover:underline text-sm px-2 py-1 disabled:opacity-50"
+                        >
+                          {deleteLoadingId === item.id ? '...' : 'حذف'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -1,0 +1,121 @@
+﻿{
+    "at":  "2026-11-08T13:09:46.6928249+02:00",
+    "passed":  15,
+    "total":  19,
+    "results":  [
+                    {
+                        "name":  "EXE API health now",
+                        "ok":  true,
+                        "detail":  "status=200",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE login",
+                        "ok":  true,
+                        "detail":  "ok",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE backup",
+                        "ok":  true,
+                        "detail":  "count=15 file=cashier-backup-2026-11-08T11-09-25.db",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE restore removes marker",
+                        "ok":  false,
+                        "detail":  "markerId=cmw7qcl0y0001j201q2mgi3m4 file=cashier-backup-2026-11-08T11-09-25.db",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE RTL login page",
+                        "ok":  true,
+                        "detail":  "packaged web",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE --sales warm",
+                        "ok":  true,
+                        "detail":  "spawnApiAgain=True listeners=0",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE single-instance lock",
+                        "ok":  false,
+                        "detail":  "spawn=True listeners=0",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "DB path Documents not asar",
+                        "ok":  true,
+                        "detail":  "Documents\\CASR\\data\\cashier.db (log+code)",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "Prisma engine bundled",
+                        "ok":  true,
+                        "detail":  "query_engine-windows.dll.node",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "seed.db in resources",
+                        "ok":  true,
+                        "detail":  "extraResources",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "logs at CASR-Logs\\app.log",
+                        "ok":  true,
+                        "detail":  "C:\\Users\\Nour Soft\\CASR-Logs\\app.log",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "crash dialog+log code",
+                        "ok":  true,
+                        "detail":  "main.js FATAL + showErrorBox",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "Setup+Portable share Documents DB",
+                        "ok":  true,
+                        "detail":  "same initDatabase path; Setup resourcesPath logged earlier",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "OS printer dialog / real paper",
+                        "ok":  false,
+                        "detail":  "NOT automated — thermal CSS+RTL only",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "full portable .exe self-extract launch",
+                        "ok":  false,
+                        "detail":  "NOT run this session — unpacked = same packaged bits",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE --sales cold",
+                        "ok":  true,
+                        "detail":  "healthy=True routeLog=True sec=0",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "EXE first-run seed (AppData hidden)",
+                        "ok":  true,
+                        "detail":  "ok=True seedLog=True migratedAppData=False size=626688",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "DB restored after first-run",
+                        "ok":  true,
+                        "detail":  "size=626688",
+                        "channel":  "EXE"
+                    },
+                    {
+                        "name":  "ISSUE AppData migrate overrides seed when Documents missing",
+                        "ok":  true,
+                        "detail":  "Observed in logs earlier: Migrated AppData DB when Documents DB absent — can restore STALE data instead of seed",
+                        "channel":  "EXE"
+                    }
+                ]
+}

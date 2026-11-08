@@ -4,19 +4,22 @@ import { useState, useEffect } from 'react'
 import { reportsService } from '@/services/reports.service'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { downloadFinancialSummaryPDF } from '@/lib/pdf'
+import { formatNumber } from '@/lib/currency'
 
 interface TodaySummary {
   salesCount: number
-  salesTotalIQD: number
+  salesTotalEGP: number
   returnsCount: number
-  returnsTotalIQD: number
-  netSalesIQD: number
-  expensesTotalIQD: number
-  netProfitIQD: number
+  returnsTotalEGP: number
+  netSalesEGP: number
+  cogsTotalEGP?: number
+  grossProfitEGP?: number
+  expensesTotalEGP: number
+  netProfitEGP: number
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  return formatNumber(n)
 }
 
 const colorMap = {
@@ -55,28 +58,30 @@ export function FinancialSummary() {
   const cards = [
     {
       label: 'مبيعات اليوم',
-      value: data ? `${fmt(data.salesTotalIQD)} د.ع` : '—',
+      value: data ? `${fmt(data.salesTotalEGP)} ج.م` : '—',
       sub: data ? `${data.salesCount} فاتورة` : undefined,
       color: 'blue' as const,
     },
     {
       label: 'الإرجاعات',
-      value: data ? `${fmt(data.returnsTotalIQD)} د.ع` : '—',
+      value: data ? `${fmt(data.returnsTotalEGP)} ج.م` : '—',
       sub: data ? `${data.returnsCount} إرجاع` : undefined,
       color: 'amber' as const,
     },
     ...(canSeeProfit ? [
       {
         label: 'صافي المبيعات',
-        value: data ? `${fmt(data.netSalesIQD)} د.ع` : '—',
+        value: data ? `${fmt(data.netSalesEGP)} ج.م` : '—',
         sub: undefined,
         color: 'green' as const,
       },
       {
         label: 'صافي الربح',
-        value: data ? `${fmt(data.netProfitIQD)} د.ع` : '—',
-        sub: data ? `مصاريف: ${fmt(data.expensesTotalIQD)} د.ع` : undefined,
-        color: (data?.netProfitIQD != null && data.netProfitIQD < 0 ? 'red' : 'green') as 'red' | 'green',
+        value: data ? `${fmt(data.netProfitEGP)} ج.م` : '—',
+        sub: data
+          ? `تكلفة: ${fmt(data.cogsTotalEGP ?? 0)} · مصاريف: ${fmt(data.expensesTotalEGP)}`
+          : undefined,
+        color: (data?.netProfitEGP != null && data.netProfitEGP < 0 ? 'red' : 'green') as 'red' | 'green',
       },
     ] : []),
   ]
@@ -84,9 +89,12 @@ export function FinancialSummary() {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-          ملخص اليوم المالي
-        </h2>
+        <div>
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            ملخص اليوم المالي
+          </h2>
+          <p className="text-xs text-gray-400 mt-0.5">إجمالي المحل — كل الفواتير المؤكدة بتاريخ اليوم (ليس حسب الوردية)</p>
+        </div>
         {canSeeProfit && data && !loading && (
           <button
             onClick={handleDownloadPDF}

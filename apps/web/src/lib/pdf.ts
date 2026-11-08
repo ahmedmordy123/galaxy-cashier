@@ -1,5 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { formatNumber } from '@/lib/currency'
+import { BRAND } from '@/lib/branding'
 
 // Font cached in memory after first load — served from local /public/fonts/ only (no CDN)
 let _fontCache: string | false | undefined = undefined
@@ -57,7 +59,7 @@ function brandedHeader(doc: jsPDF, title: string, subtitle: string, font: string
   doc.setFont(font, 'normal')
   doc.setFontSize(13)
   doc.setTextColor(...C.white)
-  doc.text('IMS-Pro | إيتانا', W / 2, 11.5, { align: 'center' })
+  doc.text(`${BRAND.productNameAr} | ${BRAND.companyNameAr}`, W / 2, 11.5, { align: 'center' })
 
   doc.setFontSize(12)
   doc.setTextColor(...C.dark)
@@ -81,9 +83,9 @@ function pageFooters(doc: jsPDF, font: string) {
     doc.setFont(font, 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(...C.gray)
-    doc.text('IMS-Pro © إيتانا', 14, H - 8)
+    doc.text(BRAND.pdfFooterLine, 14, H - 8)
     doc.text(`صفحة ${i} من ${n}`, W / 2, H - 8, { align: 'center' })
-    doc.text(new Date().toLocaleDateString('ar-IQ'), W - 14, H - 8, { align: 'right' })
+    doc.text(new Date().toLocaleDateString('ar-EG'), W - 14, H - 8, { align: 'right' })
   }
 }
 
@@ -101,11 +103,11 @@ interface SalesInvoiceRow {
 
 interface SalesSummary {
   totalInvoices: number
-  cashSalesIQD: number
+  cashSalesEGP: number
   cashSalesUSD: number
-  creditSalesIQD: number
+  creditSalesEGP: number
   creditSalesUSD: number
-  totalIQD: number
+  totalEGP: number
 }
 
 export async function downloadSalesReportPDF(
@@ -116,7 +118,7 @@ export async function downloadSalesReportPDF(
   const { doc, font } = await createDoc()
   const W = doc.internal.pageSize.getWidth()
 
-  const today = new Date().toLocaleDateString('ar-IQ', { year: 'numeric', month: 'long', day: 'numeric' })
+  const today = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
   const period = filters?.from && filters?.to ? `${filters.from} — ${filters.to}` : today
   brandedHeader(doc, 'تقرير المبيعات', `تاريخ التقرير: ${today}`, font)
 
@@ -130,9 +132,9 @@ export async function downloadSalesReportPDF(
   const kpiY = 46
   const kpis = [
     { label: 'إجمالي الفواتير', value: String(summary.totalInvoices) },
-    { label: 'نقدي (د.ع)',      value: summary.cashSalesIQD.toLocaleString('ar-IQ') },
-    { label: 'آجل (د.ع)',       value: summary.creditSalesIQD.toLocaleString('ar-IQ') },
-    { label: 'الإجمالي (د.ع)', value: summary.totalIQD.toLocaleString('ar-IQ') },
+    { label: 'نقدي (ج.م)',      value: summary.cashSalesEGP.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) },
+    { label: 'آجل (ج.م)',       value: summary.creditSalesEGP.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) },
+    { label: 'الإجمالي (ج.م)', value: summary.totalEGP.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) },
   ]
 
   const colW = (W - 28) / kpis.length
@@ -149,7 +151,7 @@ export async function downloadSalesReportPDF(
   })
 
   const STATUS: Record<string, string> = {
-    CONFIRMED: 'مؤكدة', DRAFT: 'مسودة', CANCELLED: 'ملغاة', RETURNED: 'مرتجعة',
+    CONFIRMED: 'مؤكدة', DRAFT: 'مسودة', PARKED: 'معلّقة', CANCELLED: 'ملغاة', RETURNED: 'مرتجعة',
   }
   const TYPE: Record<string, string> = { CASH: 'نقدي', CREDIT: 'آجل' }
 
@@ -157,11 +159,11 @@ export async function downloadSalesReportPDF(
     startY: kpiY + 22,
     head: [['التاريخ', 'النوع', 'الحالة', 'العملة', 'المجموع', 'العميل', 'رقم الفاتورة']],
     body: invoices.map(inv => [
-      new Date(inv.createdAt).toLocaleDateString('ar-IQ'),
+      new Date(inv.createdAt).toLocaleDateString('ar-EG'),
       TYPE[inv.type] ?? inv.type,
       STATUS[inv.status] ?? inv.status,
-      inv.currency,
-      Number(inv.total).toLocaleString('ar-IQ'),
+      'ج.م',
+      Number(inv.total).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
       inv.customer?.name ?? '—',
       inv.invoiceNumber,
     ]),
@@ -179,55 +181,63 @@ export async function downloadSalesReportPDF(
 
 interface TodaySummaryData {
   salesCount: number
-  salesTotalIQD: number
+  salesTotalEGP: number
   returnsCount: number
-  returnsTotalIQD: number
-  netSalesIQD: number
-  expensesTotalIQD: number
-  netProfitIQD: number
+  returnsTotalEGP: number
+  netSalesEGP: number
+  cogsTotalEGP?: number
+  grossProfitEGP?: number
+  expensesTotalEGP: number
+  netProfitEGP: number
 }
 
 export async function downloadFinancialSummaryPDF(data: TodaySummaryData) {
   const { doc, font } = await createDoc()
   const W = doc.internal.pageSize.getWidth()
 
-  const today = new Date().toLocaleDateString('ar-IQ', {
+  const today = new Date().toLocaleDateString('ar-EG', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
   brandedHeader(doc, 'الملخص المالي اليومي', today, font)
 
-  const fmt = (n: number) => n.toLocaleString('ar-IQ', { minimumFractionDigits: 0 })
+  const fmt = (n: number) => formatNumber(n)
 
   const cards: { label: string; value: string; sub: string; color: [number,number,number] }[] = [
     {
       label: 'إجمالي المبيعات اليوم',
-      value: `${fmt(data.salesTotalIQD)} د.ع`,
+      value: `${fmt(data.salesTotalEGP)} ج.م`,
       sub: `${data.salesCount} فاتورة مؤكدة`,
       color: C.blue,
     },
     {
       label: 'إجمالي الإرجاعات',
-      value: `${fmt(data.returnsTotalIQD)} د.ع`,
+      value: `${fmt(data.returnsTotalEGP)} ج.م`,
       sub: `${data.returnsCount} إرجاع`,
       color: C.amber,
     },
     {
       label: 'صافي المبيعات',
-      value: `${fmt(data.netSalesIQD)} د.ع`,
+      value: `${fmt(data.netSalesEGP)} ج.م`,
       sub: 'المبيعات ناقص الإرجاعات',
       color: C.green,
     },
     {
+      label: 'تكلفة البضاعة المباعة',
+      value: `${fmt(data.cogsTotalEGP ?? 0)} ج.م`,
+      sub: 'من متوسط التكلفة وقت البيع',
+      color: C.amber,
+    },
+    {
       label: 'إجمالي المصاريف',
-      value: `${fmt(data.expensesTotalIQD)} د.ع`,
+      value: `${fmt(data.expensesTotalEGP)} ج.م`,
       sub: '',
       color: C.red,
     },
     {
       label: 'صافي الربح',
-      value: `${fmt(data.netProfitIQD)} د.ع`,
-      sub: data.netProfitIQD < 0 ? '⚠ خسارة' : '✓ ربح',
-      color: data.netProfitIQD < 0 ? C.red : C.green,
+      value: `${fmt(data.netProfitEGP)} ج.م`,
+      sub: data.netProfitEGP < 0 ? 'خسارة' : 'مبيعات − تكلفة − مصاريف',
+      color: data.netProfitEGP < 0 ? C.red : C.green,
     },
   ]
 
@@ -260,7 +270,7 @@ export async function downloadFinancialSummaryPDF(data: TodaySummaryData) {
 
   doc.setFontSize(8)
   doc.setTextColor(...C.gray)
-  doc.text('* جميع الأرقام بالدينار العراقي (IQD)', W - 14, y + 4, { align: 'right' })
+  doc.text('* جميع الأرقام بالجنيه المصري (ج.م)', W - 14, y + 4, { align: 'right' })
 
   pageFooters(doc, font)
   doc.save(`financial-summary-${new Date().toISOString().slice(0, 10)}.pdf`)

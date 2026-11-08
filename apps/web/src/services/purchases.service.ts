@@ -11,4 +11,6 @@ export const purchasesService = {
     api.post(`/api/purchases/${id}/confirm`).then((r) => r.data),
   cancel: (id: string) =>
     api.post(`/api/purchases/${id}/cancel`).then((r) => r.data),
+  returnPurchase: (id: string, items?: Array<{ itemId: string; quantity: number }>) =>
+    api.post(`/api/ops/purchase-return/${id}`, { items }).then((r) => r.data),
 }

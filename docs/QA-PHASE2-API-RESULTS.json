@@ -1,0 +1,115 @@
+{
+  "at": "2026-11-08T10:31:05.238Z",
+  "results": [
+    {
+      "name": "create customer arabic+symbols",
+      "ok": true,
+      "detail": "cmw7oz8al000fp7c1bvwqusgu"
+    },
+    {
+      "name": "sale 3 items +10% discount + tax inclusive totals",
+      "ok": true,
+      "detail": "sub=660 total=594 tax=72.94736842105263 expTotal=594 expTax=72.9474"
+    },
+    {
+      "name": "confirm cash sale",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "stock deducted by 2 each",
+      "ok": true,
+      "detail": "صنف تجريبي 1:18,صنف تجريبي 2:18,صنف تجريبي 3:18"
+    },
+    {
+      "name": "partial return HTTP",
+      "ok": true,
+      "detail": "200 {\"success\":true,\"data\":{\"id\":\"cmw7oz8ek000ip7c1s17xazg7\",\"invoiceNumber\":\"INV-20261108-0001\",\"customerId\":null,\"warehouseId\":\"cmruibyzm000013tf88rxq6kv\",\"shiftId\":\"cmw7oz72t0002p7c1exd4wt99\",\"type\":\"C"
+    },
+    {
+      "name": "stock after partial return item0",
+      "ok": true,
+      "detail": "qty=19"
+    },
+    {
+      "name": "credit sale confirm",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "customer balance after credit",
+      "ok": true,
+      "detail": "bal=110 total=110"
+    },
+    {
+      "name": "partial receipt voucher",
+      "ok": true,
+      "detail": "201"
+    },
+    {
+      "name": "balance after partial payment",
+      "ok": true,
+      "detail": "bal=55 expected=55"
+    },
+    {
+      "name": "oversell rejected (no negative stock)",
+      "ok": true,
+      "detail": "400 {\"success\":false,\"error\":\"الكمية غير كافية للمنتج: صنف تجريبي 3\"}"
+    },
+    {
+      "name": "cashier blocked PUT /settings",
+      "ok": true,
+      "detail": "403"
+    },
+    {
+      "name": "cashier blocked GET /settings/users",
+      "ok": true,
+      "detail": "403"
+    },
+    {
+      "name": "cashier blocked POST /backup",
+      "ok": true,
+      "detail": "403"
+    },
+    {
+      "name": "cashier blocked GET /audit",
+      "ok": true,
+      "detail": "403"
+    },
+    {
+      "name": "admin backup create",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "backup list nonempty",
+      "ok": true,
+      "detail": "[{\"name\":\"cashier-backup-2026-11-08T10-31-03.db\",\"path\":\"E:\\\\CASR-BAK\\\\cashier-backup-2026-11-08T10-31-03.db\",\"size\":618496,\"createdAt\":\"2026-11-08T10:31:03.609Z\",\"kind\":\"manual\"},{\"name\":\"cashier-aut"
+    },
+    {
+      "name": "concurrency one win one fail stock>=0",
+      "ok": true,
+      "detail": "wins=1 fails=1 stock=0 bal=0 s1=200 s2=400"
+    },
+    {
+      "name": "double confirm rejected",
+      "ok": true,
+      "detail": "400"
+    },
+    {
+      "name": "empty items rejected",
+      "ok": true,
+      "detail": "400"
+    },
+    {
+      "name": "empty customer name rejected",
+      "ok": true,
+      "detail": "400"
+    },
+    {
+      "name": "eta status while disabled",
+      "ok": true,
+      "detail": "200 {\"success\":true,\"data\":{\"enabled\":false,\"environment\":\"preprod\",\"docType\":\"receipt\",\"rin\":\"\",\"posSerial\":\"\",\"hasCredenti"
+    }
+  ]
+}

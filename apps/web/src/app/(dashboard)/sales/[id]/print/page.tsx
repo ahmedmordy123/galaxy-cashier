@@ -1,27 +1,25 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { salesService } from '@/services/sales.service'
+import api from '@/lib/api'
+import { formatMoney } from '@/lib/currency'
+import { formatDateTime } from '@/lib/dates'
+import { InvoiceMarketingFooter } from '@/components/print/InvoiceMarketingFooter'
+import { resolvePaper, thermalPrintCss } from '@/components/print/thermalReceiptStyles'
 
-type InvoiceStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
+type InvoiceStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED' | 'QUOTE'
 type PaymentType = 'CASH' | 'CREDIT'
 type PriceType = 'RETAIL' | 'WHOLESALE' | 'SPECIAL' | 'DOLLAR' | 'DINAR'
-type Currency = 'USD' | 'IQD'
 
-const STATUS_LABELS: Record<InvoiceStatus, string> = {
+const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'مسودة',
+  PARKED: 'معلّقة',
   CONFIRMED: 'مؤكدة',
   CANCELLED: 'ملغاة',
   RETURNED: 'مرتجعة',
-}
-
-const PRICE_TYPE_LABELS: Record<PriceType, string> = {
-  RETAIL: 'مفرد',
-  WHOLESALE: 'جملة',
-  SPECIAL: 'خاص',
-  DOLLAR: 'دولار',
-  DINAR: 'دينار',
+  QUOTE: 'عرض سعر',
 }
 
 interface InvoiceItem {
@@ -29,7 +27,6 @@ interface InvoiceItem {
   quantity: number
   unitPrice: number
   subtotal: number
-  currency: Currency
   item: { id: string; name_ar: string; name_en: string; barcode: string | null }
 }
 
@@ -38,10 +35,9 @@ interface Invoice {
   invoiceNumber: string
   type: PaymentType
   priceType: PriceType
-  currency: Currency
-  exchangeRate: number
   subtotal: number
   discount: number
+  tax: number
   total: number
   amountPaid: number
   balance: number
@@ -55,14 +51,20 @@ interface Invoice {
 
 export default function PrintInvoicePage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const id = params.id as string
   const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [settings, setSettings] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
 
   useEffect(() => {
-    salesService.getById(id)
-      .then((res) => {
-        setInvoice(res.data)
+    Promise.all([
+      salesService.getById(id),
+      api.get('/api/settings'),
+    ])
+      .then(([invRes, setRes]) => {
+        setInvoice(invRes.data)
+        setSettings(setRes.data?.data ?? {})
         setTimeout(() => window.print(), 500)
       })
       .catch(() => setError('فشل في تحميل الفاتورة'))
@@ -77,145 +79,137 @@ export default function PrintInvoicePage() {
   }
 
   const discountAmount = Number(invoice.subtotal) * (Number(invoice.discount) / 100)
+  const invDiscountType = (invoice as { discountType?: string }).discountType === 'FIXED' ? 'FIXED' : 'PERCENT'
+  const discountAmountDisplay =
+    invDiscountType === 'FIXED' ? Number(invoice.discount) : Number(invoice.subtotal) * (Number(invoice.discount) / 100)
+  const taxAmount = Number(invoice.tax ?? 0)
+  const taxPct = Number(settings.tax_rate || 0)
   const change = Number(invoice.amountPaid) - Number(invoice.total)
+  const paper = resolvePaper(settings, searchParams.get('paper'))
+  const isThermal = paper === '58' || paper === '80'
+  const pageSize = isThermal ? `${paper}mm auto` : 'A4'
+  const maxW = paper === '80' ? '80mm' : paper === '58' ? '58mm' : '42rem'
 
   return (
     <>
+      <style>{thermalPrintCss(paper as '58' | '80' | 'A4')}</style>
       <style>{`
         @media print {
-          body { margin: 0; }
-          .no-print { display: none !important; }
-          @page { margin: 10mm; size: A4; }
+          @page { margin: ${isThermal ? '1.5mm' : '8mm'}; size: ${pageSize}; }
         }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; }
       `}</style>
 
-      {/* Print actions — hidden on print */}
       <div className="no-print fixed top-4 left-4 flex gap-2 z-10">
-        <button
-          onClick={() => window.print()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-        >
+        <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           🖨️ طباعة
         </button>
-        <button
-          onClick={() => window.close()}
-          className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
-        >
+        <a href={`?paper=58`} className="px-3 py-2 border rounded-lg text-xs bg-white">معاينة 58</a>
+        <a href={`?paper=80`} className="px-3 py-2 border rounded-lg text-xs bg-white">معاينة 80</a>
+        <button onClick={() => window.close()} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
           إغلاق
         </button>
       </div>
 
-      {/* Invoice content */}
-      <div dir="rtl" className="max-w-2xl mx-auto p-8 bg-white text-gray-900">
-        {/* Header */}
-        <div className="text-center mb-6 border-b-2 border-gray-800 pb-4">
-          <h1 className="text-2xl font-bold">IMS-Pro</h1>
-          <p className="text-sm text-gray-500 mt-1">فاتورة مبيعات</p>
+      <div
+        dir="rtl"
+        className={`receipt-root mx-auto bg-white text-gray-900 ${isThermal ? `thermal-narrow p-2` : 'p-6'}`}
+        style={{ maxWidth: maxW }}
+      >
+        <div className={`text-center mb-4 border-b border-dashed border-gray-600 pb-3 ${isThermal ? '' : 'border-b-2 border-gray-800 pb-4 mb-6'}`}>
+          <h1 className="receipt-title">{settings.business_name_ar || '—'}</h1>
+          {!settings.business_name_ar && (
+            <p className="text-xs text-amber-600 mt-1">أضف اسم النشاط من الإعدادات ليظهر على الفاتورة</p>
+          )}
+          {settings.business_address && <p className="text-sm text-gray-500 mt-1">{settings.business_address}</p>}
+          {settings.business_phone && <p className="text-sm text-gray-500">ت: {settings.business_phone}</p>}
+          <p className="text-sm text-blue-800 mt-2 font-medium">فاتورة مبيعات</p>
         </div>
 
-        {/* Invoice meta */}
-        <div className="flex justify-between items-start mb-6">
+        <div className="flex justify-between items-start mb-6 gap-4">
           <div className="space-y-1 text-sm">
-            <div>
-              <span className="text-gray-500">رقم الفاتورة: </span>
-              <span className="font-bold font-mono">{invoice.invoiceNumber}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">التاريخ: </span>
-              <span>{new Date(invoice.createdAt).toLocaleString('ar-IQ')}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">الحالة: </span>
-              <span className="font-medium">{STATUS_LABELS[invoice.status]}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">نوع السعر: </span>
-              <span>{PRICE_TYPE_LABELS[invoice.priceType]}</span>
-            </div>
+            <div><span className="text-gray-500">رقم الفاتورة: </span><span className="font-bold font-mono">{invoice.invoiceNumber}</span></div>
+            <div><span className="text-gray-500">التاريخ: </span><span>{formatDateTime(invoice.createdAt)}</span></div>
+            <div><span className="text-gray-500">الحالة: </span><span className="font-medium">{STATUS_LABELS[invoice.status] ?? invoice.status}</span></div>
           </div>
           <div className="space-y-1 text-sm text-left">
-            <div>
-              <span className="text-gray-500">العميل: </span>
-              <span className="font-medium">{invoice.customer?.name ?? 'عميل عابر'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">طريقة الدفع: </span>
-              <span>{invoice.type === 'CASH' ? 'نقدي' : 'آجل'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">العملة: </span>
-              <span>{invoice.currency === 'IQD' ? 'دينار عراقي' : 'دولار أمريكي'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">المحرر: </span>
-              <span>{invoice.createdBy.name}</span>
-            </div>
+            <div><span className="text-gray-500">العميل: </span><span className="font-medium">{invoice.customer?.name ?? 'عميل عابر'}</span></div>
+            <div><span className="text-gray-500">طريقة الدفع: </span><span>{invoice.type === 'CASH' ? 'نقدي' : 'آجل'}</span></div>
+            <div><span className="text-gray-500">المحرر: </span><span>{invoice.createdBy?.name}</span></div>
           </div>
         </div>
 
-        {/* Items table */}
-        <table className="w-full text-sm mb-6 border-collapse">
+        {isThermal ? (
+          <div className="space-y-2 mb-4 text-xs">
+            {invoice.items.map((line, idx) => (
+              <div key={line.id} className="border-b border-dashed border-gray-300 pb-1">
+                <div className="item-name font-medium">{line.item.name_ar}</div>
+                <div className="receipt-line text-gray-600">
+                  <span>{Number(line.quantity)} × {formatMoney(line.unitPrice)}</span>
+                  <span>{formatMoney(line.subtotal)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+        <table className="w-full text-sm mb-6 border-collapse receipt-items">
           <thead>
             <tr className="bg-gray-100 border border-gray-300">
-              <th className="px-3 py-2 text-right font-medium border border-gray-300">#</th>
-              <th className="px-3 py-2 text-right font-medium border border-gray-300">الصنف</th>
-              <th className="px-3 py-2 text-center font-medium border border-gray-300 w-20">الكمية</th>
-              <th className="px-3 py-2 text-center font-medium border border-gray-300 w-28">سعر الوحدة</th>
-              <th className="px-3 py-2 text-center font-medium border border-gray-300 w-28">الإجمالي</th>
+              <th className="px-2 py-2 text-right font-medium border border-gray-300">#</th>
+              <th className="px-2 py-2 text-right font-medium border border-gray-300">الصنف</th>
+              <th className="px-2 py-2 text-center font-medium border border-gray-300">الكمية</th>
+              <th className="px-2 py-2 text-center font-medium border border-gray-300">السعر</th>
+              <th className="px-2 py-2 text-center font-medium border border-gray-300">الإجمالي</th>
             </tr>
           </thead>
           <tbody>
             {invoice.items.map((line, idx) => (
               <tr key={line.id} className="border border-gray-300">
-                <td className="px-3 py-2 text-center border border-gray-300 text-gray-500">{idx + 1}</td>
-                <td className="px-3 py-2 border border-gray-300">
+                <td className="px-2 py-2 text-center border border-gray-300 text-gray-500">{idx + 1}</td>
+                <td className="px-2 py-2 border border-gray-300">
                   <div className="font-medium">{line.item.name_ar}</div>
-                  {line.item.barcode && (
-                    <div className="text-xs text-gray-400 font-mono">{line.item.barcode}</div>
-                  )}
+                  {line.item.barcode && <div className="text-xs text-gray-400 font-mono">{line.item.barcode}</div>}
                 </td>
-                <td className="px-3 py-2 text-center border border-gray-300">
-                  {Number(line.quantity).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                </td>
-                <td className="px-3 py-2 text-center border border-gray-300">
-                  {Number(line.unitPrice).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                </td>
-                <td className="px-3 py-2 text-center border border-gray-300 font-medium">
-                  {Number(line.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                </td>
+                <td className="px-2 py-2 text-center border border-gray-300">{Number(line.quantity).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
+                <td className="px-2 py-2 text-center border border-gray-300">{formatMoney(line.unitPrice)}</td>
+                <td className="px-2 py-2 text-center border border-gray-300 font-medium">{formatMoney(line.subtotal)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        )}
 
-        {/* Totals */}
-        <div className="flex justify-end mb-6">
-          <div className="w-64 space-y-1 text-sm">
+        <div className={`mb-4 ${isThermal ? '' : 'flex justify-end mb-6'}`}>
+          <div className={`space-y-1 ${isThermal ? 'text-xs' : 'w-64 text-sm'}`}>
             <div className="flex justify-between">
               <span className="text-gray-500">المجموع الفرعي</span>
-              <span>{Number(invoice.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}</span>
+              <span>{formatMoney(invoice.subtotal)}</span>
             </div>
             {Number(invoice.discount) > 0 && (
               <div className="flex justify-between text-red-600">
-                <span>الخصم ({Number(invoice.discount)}%)</span>
-                <span>- {discountAmount.toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}</span>
+                <span>الخصم {invDiscountType === 'FIXED' ? '(مبلغ)' : `(${Number(invoice.discount)}%)`}</span>
+                <span>- {formatMoney(discountAmountDisplay)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-bold border-t border-gray-400 pt-1 mt-1">
+            {taxAmount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">ض.ق.م متضمنة{taxPct ? ` (${taxPct}%)` : ''}</span>
+                <span>{formatMoney(taxAmount)}</span>
+              </div>
+            )}
+            <div className="receipt-line receipt-total border-t border-gray-800 pt-2 mt-2">
               <span>الإجمالي</span>
-              <span>{Number(invoice.total).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}</span>
+              <span>{formatMoney(invoice.total)}</span>
             </div>
             {invoice.type === 'CASH' && Number(invoice.amountPaid) > 0 && (
               <>
                 <div className="flex justify-between text-green-700">
                   <span>المبلغ المستلم</span>
-                  <span>{Number(invoice.amountPaid).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}</span>
+                  <span>{formatMoney(invoice.amountPaid)}</span>
                 </div>
                 {change > 0 && (
                   <div className="flex justify-between text-blue-700">
                     <span>الباقي للعميل</span>
-                    <span>{change.toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}</span>
+                    <span>{formatMoney(change)}</span>
                   </div>
                 )}
               </>
@@ -223,24 +217,22 @@ export default function PrintInvoicePage() {
             {invoice.type === 'CREDIT' && (
               <div className="flex justify-between text-red-600">
                 <span>الرصيد المتبقي</span>
-                <span>{Number(invoice.balance).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {invoice.currency}</span>
+                <span>{formatMoney(invoice.balance)}</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Notes */}
         {invoice.notes && (
           <div className="border border-gray-300 rounded p-3 text-sm text-gray-600 mb-6">
-            <span className="font-medium">ملاحظات: </span>
-            {invoice.notes}
+            <span className="font-medium">ملاحظات: </span>{invoice.notes}
           </div>
         )}
 
-        {/* Footer */}
         <div className="border-t border-gray-300 pt-4 text-center text-xs text-gray-400">
-          شكراً لتعاملكم معنا
+          {settings.invoice_footer_ar || 'شكراً لتعاملكم معنا'}
         </div>
+        <InvoiceMarketingFooter settings={settings} />
       </div>
     </>
   )

@@ -71,7 +71,7 @@ export default function SuppliersPage() {
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{s.name}</td>
                   <td className="px-4 py-3 text-gray-500">{s.phone || '—'}</td>
                   <td className={`px-4 py-3 font-medium ${Number(s.balance) > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                    {Number(s.balance).toLocaleString('ar-IQ')} {s.currency}
+                    {Number(s.balance).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {s.currency}
                   </td>
                   <td className="px-4 py-3 flex gap-2">
                     <button onClick={() => router.push(`/suppliers/${s.id}`)} className="text-blue-600 hover:underline text-sm">تعديل</button>

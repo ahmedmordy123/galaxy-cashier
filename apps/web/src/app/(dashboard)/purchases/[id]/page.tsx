@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { purchasesService } from '@/services/purchases.service'
+import { formatMoney, formatNumber } from '@/lib/currency'
+import { formatDate, formatDateTime } from '@/lib/dates'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,7 +37,7 @@ interface PurchaseInvoiceDetail {
   id: string
   invoiceNumber: string
   supplier: Supplier | null
-  currency: 'IQD' | 'USD'
+  currency: 'EGP' | 'USD'
   exchangeRate: number
   subtotal: number
   discount: number
@@ -74,7 +76,7 @@ export default function PurchaseDetailPage() {
 
   const [invoice, setInvoice] = useState<PurchaseInvoiceDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState<'confirm' | 'cancel' | null>(null)
+  const [actionLoading, setActionLoading] = useState<'confirm' | 'cancel' | 'return' | null>(null)
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
@@ -151,7 +153,7 @@ export default function PurchaseDetailPage() {
     )
   }
 
-  const currencyLabel = invoice.currency === 'USD' ? 'دولار' : 'دينار'
+  const currencyLabel = 'ج.م'
 
   return (
     <div dir="rtl" className="max-w-4xl">
@@ -169,7 +171,7 @@ export default function PurchaseDetailPage() {
               {invoice.invoiceNumber}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              {new Date(invoice.createdAt).toLocaleString('ar-IQ')}
+              {formatDateTime(invoice.createdAt)}
             </p>
           </div>
         </div>
@@ -209,19 +211,13 @@ export default function PurchaseDetailPage() {
             <p className="font-medium text-gray-900 dark:text-white">{currencyLabel}</p>
           </div>
           <div>
-            <p className="text-gray-500 dark:text-gray-400 mb-0.5">سعر الصرف</p>
-            <p className="font-medium text-gray-900 dark:text-white font-mono">
-              {Number(invoice.exchangeRate).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}
-            </p>
-          </div>
-          <div>
             <p className="text-gray-500 dark:text-gray-400 mb-0.5">أنشأ بواسطة</p>
             <p className="font-medium text-gray-900 dark:text-white">{invoice.createdBy?.name}</p>
           </div>
           <div>
             <p className="text-gray-500 dark:text-gray-400 mb-0.5">آخر تحديث</p>
             <p className="font-medium text-gray-900 dark:text-white">
-              {new Date(invoice.updatedAt).toLocaleString('ar-IQ')}
+              {formatDateTime(invoice.updatedAt)}
             </p>
           </div>
           {invoice.notes && (
@@ -264,17 +260,17 @@ export default function PurchaseDetailPage() {
                     </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{line.item.unit}</td>
                     <td className="px-3 py-2 text-gray-900 dark:text-white font-mono">
-                      {Number(line.quantity).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}
+                      {formatNumber(line.quantity)}
                     </td>
                     <td className="px-3 py-2 text-gray-900 dark:text-white font-mono">
-                      {Number(line.unitCost).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}
+                      {formatMoney(line.unitCost)}
                     </td>
                     <td className="px-3 py-2 font-medium text-gray-900 dark:text-white font-mono">
-                      {Number(line.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}
+                      {formatMoney(line.subtotal)}
                     </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
                       {line.expiryDate
-                        ? new Date(line.expiryDate).toLocaleDateString('ar-IQ')
+                        ? formatDate(line.expiryDate)
                         : '—'}
                     </td>
                   </tr>
@@ -291,37 +287,26 @@ export default function PurchaseDetailPage() {
           <div className="w-full max-w-xs space-y-2 text-sm">
             <div className="flex justify-between text-gray-600 dark:text-gray-400">
               <span>المجموع الفرعي</span>
-              <span className="font-mono">
-                {Number(invoice.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}{' '}
-                {currencyLabel}
-              </span>
+              <span className="font-mono">{formatMoney(invoice.subtotal)}</span>
             </div>
             <div className="flex justify-between text-gray-600 dark:text-gray-400">
               <span>الخصم</span>
               <span className="font-mono text-red-500">
-                -{Number(invoice.discount).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}{' '}
-                {currencyLabel}
+                -{formatMoney(invoice.discount)}
               </span>
             </div>
             <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white border-t border-gray-200 dark:border-gray-700 pt-2">
               <span>الإجمالي</span>
-              <span className="font-mono">
-                {Number(invoice.total).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}{' '}
-                {currencyLabel}
-              </span>
+              <span className="font-mono">{formatMoney(invoice.total)}</span>
             </div>
             <div className="flex justify-between text-gray-600 dark:text-gray-400">
               <span>المدفوع</span>
-              <span className="font-mono">
-                {Number(invoice.amountPaid).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}{' '}
-                {currencyLabel}
-              </span>
+              <span className="font-mono">{formatMoney(invoice.amountPaid)}</span>
             </div>
             <div className="flex justify-between text-gray-600 dark:text-gray-400">
               <span>الرصيد المتبقي</span>
               <span className={`font-mono ${Number(invoice.balance) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {Number(invoice.balance).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })}{' '}
-                {currencyLabel}
+                {formatMoney(invoice.balance)}
               </span>
             </div>
           </div>
@@ -338,6 +323,27 @@ export default function PurchaseDetailPage() {
               className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 transition-colors"
             >
               {actionLoading === 'confirm' ? 'جار التأكيد...' : 'تأكيد الفاتورة'}
+            </button>
+          )}
+          {invoice.status === 'CONFIRMED' && (
+            <button
+              onClick={async () => {
+                if (!window.confirm('مرتجع شراء كامل للمورد؟')) return
+                setActionLoading('return')
+                try {
+                  await purchasesService.returnPurchase(id)
+                  await load()
+                } catch (e: unknown) {
+                  const axiosErr = e as { response?: { data?: { error?: string } } }
+                  setError(axiosErr.response?.data?.error || 'فشل المرتجع')
+                } finally {
+                  setActionLoading(null)
+                }
+              }}
+              disabled={actionLoading !== null}
+              className="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium disabled:opacity-50"
+            >
+              {actionLoading === 'return' ? 'جار المرتجع...' : 'مرتجع شراء'}
             </button>
           )}
           <button

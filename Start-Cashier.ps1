@@ -167,8 +167,8 @@ Write-Ok "Ports clear"
 Write-Step "Starting API server (port 4001)..."
 $apiEnv = @{
   DATABASE_URL    = $DbUrl
-  JWT_SECRET      = "ims-pro-jwt-secret-change-before-production-min-32-chars"
-  JWT_REFRESH_SECRET = "ims-pro-refresh-secret-change-before-production-min-32-chars"
+  JWT_SECRET      = "casr-dev-jwt-secret-change-in-production-min-32-chars"
+  JWT_REFRESH_SECRET = "casr-dev-refresh-secret-change-in-production-min-32"
   PORT            = "4001"
   NODE_ENV        = "development"
   CORS_ORIGIN     = "http://localhost:3001"

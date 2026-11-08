@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { salesService } from '@/services/sales.service'
+import { formatMoney, formatNumber } from '@/lib/currency'
+import { formatDate } from '@/lib/dates'
 
 interface InvoiceLine {
   id: string
@@ -144,7 +146,7 @@ export default function ReturnPage() {
           type="text"
           value={searchId}
           onChange={e => setSearchId(e.target.value)}
-          placeholder="أدخل رقم الفاتورة (ID)..."
+          placeholder="رقم الفاتورة مثل INV-20260720-0001"
           className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
         <button
@@ -196,13 +198,13 @@ export default function ReturnPage() {
               <div>
                 <p className="text-gray-400 text-xs mb-1">الإجمالي</p>
                 <p className="font-bold text-gray-900 dark:text-white">
-                  {Number(invoice.total).toLocaleString('ar-IQ')} {invoice.currency}
+                  {formatMoney(invoice.total)}
                 </p>
               </div>
               <div>
                 <p className="text-gray-400 text-xs mb-1">التاريخ</p>
                 <p className="font-medium text-gray-900 dark:text-white">
-                  {new Date(invoice.createdAt).toLocaleDateString('ar-IQ')}
+                  {formatDate(invoice.createdAt)}
                 </p>
               </div>
             </div>
@@ -248,7 +250,7 @@ export default function ReturnPage() {
                       <div className="text-xs text-gray-400">{line.item.name_en}</div>
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
-                      {Number(line.quantity).toLocaleString('ar-IQ')}
+                      {formatNumber(line.quantity)}
                     </td>
                     <td className="px-4 py-3">
                       <input
@@ -262,7 +264,7 @@ export default function ReturnPage() {
                       />
                     </td>
                     <td className="px-4 py-3 text-gray-900 dark:text-white">
-                      {Number(line.unitPrice).toLocaleString('ar-IQ')} {line.currency}
+                      {formatMoney(line.unitPrice)}
                     </td>
                   </tr>
                 ))}

@@ -34,23 +34,24 @@ export async function updateSettingsHandler(req: Request, res: Response) {
     if (!result.success) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
+        error: 'بيانات غير صحيحة',
         details: result.error.flatten().fieldErrors,
       })
     }
 
-    // Convert validated object to Record<string, string>
+    // Merge validated fields + allowlisted extra string fields from body
     const data: Record<string, string> = {}
     for (const [key, value] of Object.entries(result.data)) {
-      if (value !== undefined) {
+      if (value !== undefined && value !== null) {
         data[key] = String(value)
       }
     }
 
     const settings = await updateSettings(data)
     res.json({ success: true, data: settings })
-  } catch {
-    res.status(500).json({ success: false, error: 'Failed to update settings' })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to update settings'
+    res.status(500).json({ success: false, error: msg })
   }
 }
 

@@ -1,0 +1,85 @@
+{
+  "at": "2026-11-08T11:24:15.234Z",
+  "results": [
+    {
+      "name": "credit customer balance matches invoice",
+      "ok": true,
+      "detail": "cust.balance=200 inv2.total=200"
+    },
+    {
+      "name": "cash sale fully RETURNED in SQLite",
+      "ok": true,
+      "detail": "RETURNED"
+    },
+    {
+      "name": "SQLite confirmed sales total = 200 (credit only)",
+      "ok": true,
+      "detail": "sqlConfirmed=200"
+    },
+    {
+      "name": "SQLite returned sales total = 300",
+      "ok": true,
+      "detail": "sqlReturned=300"
+    },
+    {
+      "name": "SQLite credit open balance = 200",
+      "ok": true,
+      "detail": "sqlCredit=200"
+    },
+    {
+      "name": "SQLite COGS for confirmed = 80 (2*40)",
+      "ok": true,
+      "detail": "sqlCogs=80"
+    },
+    {
+      "name": "SQLite gross profit = 120 (200-80)",
+      "ok": true,
+      "detail": "sqlGross=120"
+    },
+    {
+      "name": "API salesTotal vs SQLite confirmed+returned day fields",
+      "ok": true,
+      "detail": "apiSales=500 sqlConf=200 sqlRet=300"
+    },
+    {
+      "name": "API returnsTotal vs SQLite returned",
+      "ok": true,
+      "detail": "api=300 sql=300"
+    },
+    {
+      "name": "API grossProfit vs SQLite",
+      "ok": true,
+      "detail": "api=120 sql=120"
+    },
+    {
+      "name": "API cogs vs SQLite",
+      "ok": true,
+      "detail": "api=80 sql=80"
+    },
+    {
+      "name": "API netSales vs remaining confirmed",
+      "ok": true,
+      "detail": "apiNet=200 expectedConfirmed=200 fullKeys=date,salesCount,invoiceCount,salesTotalEGP,returnsCount,returnsTotalEGP,netSalesEGP,cashSalesEGP,cashRefundsEGP,cogsTotalEGP,grossProfitEGP,expensesTotalEGP,netProfitEGP,last7Days"
+    },
+    {
+      "name": "sales report HTTP",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "profit report HTTP",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "profit report vs SQLite gross",
+      "ok": true,
+      "detail": "api=120 sql=120"
+    },
+    {
+      "name": "API customer balance = 200",
+      "ok": true,
+      "detail": "bal=200"
+    }
+  ]
+}

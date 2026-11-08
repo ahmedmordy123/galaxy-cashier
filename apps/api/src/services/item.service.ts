@@ -1,7 +1,8 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { CreateItemInput, UpdateItemInput } from '../validators/item.validator'
-
-const prisma = new PrismaClient()
+import { ensureDefaultWarehouse, getOrCreateBalance, syncItemStockQty } from './stock-ops.service'
+import { notFoundError, isPlausibleId } from '../utils/apiError'
+import { prisma } from '../db/prisma'
 
 function generateBarcode(): string {
   const timestamp = Date.now().toString().slice(-8)
@@ -75,18 +76,33 @@ export async function importItems(rows: ImportRow[]): Promise<ImportResult> {
     }
 
     try {
+      let itemId: string
       if (barcode) {
         const existing = await prisma.item.findFirst({ where: { barcode } })
         if (existing) {
           await prisma.item.update({ where: { id: existing.id }, data: { ...data, barcode } })
+          itemId = existing.id
           result.updated++
         } else {
-          await prisma.item.create({ data: { ...data, barcode } })
+          const created = await prisma.item.create({ data: { ...data, barcode } })
+          itemId = created.id
           result.created++
         }
       } else {
-        await prisma.item.create({ data: { ...data, barcode: generateBarcode() } })
+        const created = await prisma.item.create({ data: { ...data, barcode: generateBarcode() } })
+        itemId = created.id
         result.created++
+      }
+
+      const qty = data.stockQty
+      if (qty > 0) {
+        const wh = await ensureDefaultWarehouse(prisma)
+        await getOrCreateBalance(prisma, itemId, wh.id)
+        await prisma.stockBalance.update({
+          where: { itemId_warehouseId: { itemId, warehouseId: wh.id } },
+          data: { qty },
+        })
+        await syncItemStockQty(prisma, itemId)
       }
     } catch (err) {
       result.errors.push(`${label}: ${err instanceof Error ? err.message : 'خطأ'}`)
@@ -172,11 +188,18 @@ export async function getItems(params: {
   // Build base where
   const where: Record<string, unknown> = { isActive }
   if (search) {
-    where.OR = [
-      { name_ar: { contains: search } },
-      { name_en: { contains: search, mode: 'insensitive' } },
-      { barcode: { contains: search } },
+    const term = search.trim()
+    const tokens = term.split(/\s+/).filter(Boolean)
+    const matchToken = (token: string) => [
+      { name_ar: { contains: token } },
+      { name_en: { contains: token } },
+      { barcode: { contains: token } },
     ]
+    if (tokens.length <= 1) {
+      where.OR = matchToken(term)
+    } else {
+      where.OR = tokens.flatMap((token) => matchToken(token))
+    }
   }
   if (categoryId) where.categoryId = categoryId
 
@@ -216,32 +239,212 @@ export async function getItemByBarcode(barcode: string) {
 }
 
 export async function createItem(data: CreateItemInput) {
-  return prisma.item.create({
+  const wh = await ensureDefaultWarehouse(prisma)
+  const item = await prisma.item.create({
     data: {
-      ...data,
       barcode: data.barcode || generateBarcode(),
+      name_ar: data.name_ar,
+      name_en: data.name_en,
+      unit: data.unit ?? 'piece',
+      categoryId: data.categoryId ?? null,
+      supplierId: data.supplierId ?? null,
       costPrice: data.costPrice ?? 0,
       retailPrice: data.retailPrice ?? 0,
       wholesalePrice: data.wholesalePrice ?? 0,
       specialPrice: data.specialPrice ?? 0,
       dollarPrice: data.dollarPrice ?? 0,
       dinarPrice: data.dinarPrice ?? 0,
+      stockQty: data.stockQty ?? 0,
       minimumStock: data.minimumStock ?? 0,
+      expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+      isFavorite: data.isFavorite ?? false,
+      trackSerial: data.trackSerial ?? false,
+      warrantyMonths: data.warrantyMonths ?? 0,
+      size: data.size ?? null,
+      color: data.color ?? null,
+      parentId: data.parentId ?? null,
+      itemKind: data.parentId ? 'VARIANT' : 'SIMPLE',
     },
     include: { category: true },
   })
+  const qty = Number(data.stockQty ?? 0)
+  if (qty > 0) {
+    await getOrCreateBalance(prisma, item.id, wh.id)
+    await prisma.stockBalance.update({
+      where: { itemId_warehouseId: { itemId: item.id, warehouseId: wh.id } },
+      data: { qty },
+    })
+    await syncItemStockQty(prisma, item.id)
+  }
+  return item
 }
 
 export async function updateItem(id: string, data: UpdateItemInput) {
+  const {
+    categoryId,
+    supplierId,
+    parentId,
+    barcode,
+    name_ar,
+    name_en,
+    unit,
+    costPrice,
+    retailPrice,
+    wholesalePrice,
+    specialPrice,
+    dollarPrice,
+    dinarPrice,
+    stockQty,
+    minimumStock,
+    expiryDate,
+    isFavorite,
+    trackSerial,
+    warrantyMonths,
+    size,
+    color,
+  } = data
+
+  const dataOut: Prisma.ItemUncheckedUpdateInput = {
+    ...(barcode !== undefined ? { barcode } : {}),
+    ...(name_ar !== undefined ? { name_ar } : {}),
+    ...(name_en !== undefined ? { name_en: name_en ?? '' } : {}),
+    ...(unit !== undefined ? { unit } : {}),
+    ...(categoryId !== undefined ? { categoryId } : {}),
+    ...(supplierId !== undefined ? { supplierId } : {}),
+    ...(parentId !== undefined ? { parentId } : {}),
+    ...(costPrice !== undefined ? { costPrice } : {}),
+    ...(retailPrice !== undefined ? { retailPrice } : {}),
+    ...(wholesalePrice !== undefined ? { wholesalePrice } : {}),
+    ...(specialPrice !== undefined ? { specialPrice } : {}),
+    ...(dollarPrice !== undefined ? { dollarPrice } : {}),
+    ...(dinarPrice !== undefined ? { dinarPrice } : {}),
+    ...(stockQty !== undefined ? { stockQty } : {}),
+    ...(minimumStock !== undefined ? { minimumStock } : {}),
+    ...(expiryDate !== undefined ? { expiryDate: expiryDate ? new Date(expiryDate) : null } : {}),
+    ...(isFavorite !== undefined ? { isFavorite } : {}),
+    ...(trackSerial !== undefined ? { trackSerial } : {}),
+    ...(warrantyMonths !== undefined ? { warrantyMonths } : {}),
+    ...(size !== undefined ? { size } : {}),
+    ...(color !== undefined ? { color } : {}),
+  }
+
   return prisma.item.update({
     where: { id },
-    data,
+    data: dataOut,
     include: { category: true },
   })
 }
 
 export async function softDeleteItem(id: string) {
-  return prisma.item.update({ where: { id }, data: { isActive: false } })
+  if (!isPlausibleId(id)) throw notFoundError()
+  const result = await prisma.item.updateMany({
+    where: { id, isActive: true },
+    data: { isActive: false },
+  })
+  if (result.count === 0) throw notFoundError()
+}
+
+export type PriceField = 'costPrice' | 'retailPrice' | 'wholesalePrice' | 'specialPrice'
+
+function adjustPrice(current: number, mode: 'percent' | 'amount' | 'set', value: number): number {
+  let next = current
+  if (mode === 'percent') next = current * (1 + value / 100)
+  else if (mode === 'amount') next = current + value
+  else next = value
+  return Math.max(0, Math.round(next * 100) / 100)
+}
+
+function buildItemsWhere(params: {
+  search?: string
+  categoryId?: string
+  isActive?: boolean
+}): Prisma.ItemWhereInput {
+  const { search, categoryId, isActive = true } = params
+  const where: Prisma.ItemWhereInput = { isActive }
+  if (search) {
+    const term = search.trim()
+    const tokens = term.split(/\s+/).filter(Boolean)
+    const matchToken = (token: string) => [
+      { name_ar: { contains: token } },
+      { name_en: { contains: token } },
+      { barcode: { contains: token } },
+    ]
+    where.OR = tokens.length <= 1 ? matchToken(term) : tokens.flatMap((token) => matchToken(token))
+  }
+  if (categoryId) where.categoryId = categoryId
+  return where
+}
+
+export async function bulkSoftDeleteItems(params: {
+  itemIds?: string[]
+  search?: string
+  categoryId?: string
+  scope: 'selected' | 'filtered' | 'all'
+}) {
+  const where = buildItemsWhere({
+    search: params.scope === 'filtered' ? params.search : undefined,
+    categoryId: params.scope === 'filtered' ? params.categoryId : undefined,
+  })
+  if (params.scope === 'selected') {
+    if (!params.itemIds?.length) throw new Error('NO_ITEMS_SELECTED')
+    where.id = { in: params.itemIds }
+  }
+
+  const result = await prisma.item.updateMany({
+    where,
+    data: { isActive: false },
+  })
+  return { updated: result.count }
+}
+
+export async function bulkAdjustItemPrices(params: {
+  itemIds?: string[]
+  search?: string
+  categoryId?: string
+  scope: 'selected' | 'filtered' | 'all'
+  fields: PriceField[]
+  mode: 'percent' | 'amount' | 'set'
+  value: number
+}) {
+  if (!params.fields.length) throw new Error('NO_PRICE_FIELDS')
+
+  const where = buildItemsWhere({
+    search: params.scope === 'filtered' ? params.search : undefined,
+    categoryId: params.scope === 'filtered' ? params.categoryId : undefined,
+  })
+  if (params.scope === 'selected') {
+    if (!params.itemIds?.length) throw new Error('NO_ITEMS_SELECTED')
+    where.id = { in: params.itemIds }
+  }
+
+  const items = await prisma.item.findMany({
+    where,
+    select: {
+      id: true,
+      costPrice: true,
+      retailPrice: true,
+      wholesalePrice: true,
+      specialPrice: true,
+    },
+    take: 5000,
+  })
+
+  if (items.length === 0) throw new Error('NO_ITEMS_MATCH')
+
+  let updated = 0
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      const data: Partial<Record<PriceField, number>> = {}
+      for (const field of params.fields) {
+        const current = Number(item[field])
+        data[field] = adjustPrice(current, params.mode, params.value)
+      }
+      await tx.item.update({ where: { id: item.id }, data })
+      updated++
+    }
+  })
+
+  return { updated, matched: items.length }
 }
 
 export async function getCategories() {

@@ -1,7 +1,6 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { CreateVoucherInput } from '../validators/voucher.validator'
-
-const prisma = new PrismaClient()
+import { prisma } from '../db/prisma'
 
 // ─── Query functions ──────────────────────────────────────────────────────────
 
@@ -128,6 +127,5 @@ export async function createVoucher(data: CreateVoucherInput, userId: string) {
         },
       })
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   )
 }

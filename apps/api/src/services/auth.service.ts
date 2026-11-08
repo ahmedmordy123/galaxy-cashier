@@ -1,17 +1,72 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
-import { AuthUser } from '@ims-pro/types'
 
-const prisma = new PrismaClient()
+import { AuthUser } from '@ims-pro/types'
+import { prisma } from '../db/prisma'
+
+const MAX_FAILED_ATTEMPTS = 5
+const LOCK_DURATION_MS = 20 * 60 * 1000
+
+export async function getLoginLockStatus(username: string): Promise<{ locked: boolean; lockedUntil?: Date }> {
+  const user = await prisma.user.findUnique({ where: { username } })
+  if (!user?.lockedUntil) return { locked: false }
+  if (user.lockedUntil <= new Date()) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lockedUntil: null, failedLoginAttempts: 0 },
+    })
+    return { locked: false }
+  }
+  return { locked: true, lockedUntil: user.lockedUntil }
+}
+
+async function recordFailedLogin(username: string) {
+  const user = await prisma.user.findUnique({ where: { username } })
+  if (!user) return
+  const next = (user.failedLoginAttempts ?? 0) + 1
+  if (next >= MAX_FAILED_ATTEMPTS) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: new Date(Date.now() + LOCK_DURATION_MS),
+      },
+    })
+    return
+  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { failedLoginAttempts: next },
+  })
+}
+
+async function clearLoginFailures(userId: string) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { failedLoginAttempts: 0, lockedUntil: null },
+  })
+}
 
 export async function validateCredentials(username: string, password: string): Promise<AuthUser | null> {
+  const lock = await getLoginLockStatus(username)
+  if (lock.locked) {
+    const err = new Error('ACCOUNT_LOCKED') as Error & { statusCode: number }
+    err.statusCode = 423
+    throw err
+  }
+
   const user = await prisma.user.findFirst({
     where: { username, isActive: true },
   })
-  if (!user) return null
+  if (!user) {
+    return null
+  }
   const valid = await bcrypt.compare(password, user.passwordHash)
-  if (!valid) return null
+  if (!valid) {
+    await recordFailedLogin(username)
+    return null
+  }
+  await clearLoginFailures(user.id)
   return {
     id: user.id,
     username: user.username,
@@ -25,7 +80,7 @@ export function generateAccessToken(user: AuthUser): string {
   return jwt.sign(
     { sub: user.id, role: user.role, username: user.username, name: user.name, language: user.language },
     process.env.JWT_SECRET!,
-    { expiresIn: '15m' }
+    { expiresIn: '15m' },
   )
 }
 

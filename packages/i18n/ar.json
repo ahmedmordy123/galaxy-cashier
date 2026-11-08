@@ -17,7 +17,14 @@
     "cashStatement": "كشف الصندوق",
     "reports": "التقارير",
     "settings": "الإعدادات",
-    "users": "المستخدمون"
+    "users": "المستخدمون",
+    "staffAdvances": "سلف الموظفين"
+  },
+  "home": {
+    "newSale": "فاتورة مبيعات جديدة",
+    "treasury": "الخزينة",
+    "customers": "العملاء",
+    "items": "المنتجات"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -102,8 +109,8 @@
     "retailPrice": "سعر المفرد",
     "wholesalePrice": "سعر الجملة",
     "specialPrice": "السعر الخاص",
-    "dollarPrice": "سعر الدولار (USD)",
-    "dinarPrice": "سعر الدينار (IQD)",
+    "dollarPrice": "سعر إضافي (قديم)",
+    "dinarPrice": "سعر إضافي (قديم)",
     "costPrice": "سعر التكلفة",
     "stockQty": "كمية المخزون",
     "minimumStock": "الحد الأدنى للمخزون",
@@ -146,8 +153,8 @@
     "retail": "مفرد",
     "wholesale": "جملة",
     "special": "خاص",
-    "dollar": "دولار",
-    "dinar": "دينار",
+    "dollar": "جنيه",
+    "dinar": "جنيه",
     "amountPaid": "المبلغ المدفوع",
     "change": "الباقي",
     "confirmInvoice": "تأكيد الفاتورة",
@@ -226,7 +233,18 @@
     "profitMargin": "هامش الربح",
     "top10Items": "أكثر 10 أصناف ربحية",
     "slowMoving": "أصناف بطيئة الحركة",
-    "fastMoving": "أصناف سريعة الحركة"
+    "fastMoving": "أصناف سريعة الحركة",
+    "expenseAnalysis": "تحليل المصروفات",
+    "inventoryAsOf": "مخزون بتاريخ",
+    "periodCompare": "مقارنة فترتين"
+  },
+  "pos": {
+    "shortcutConfirm": "F2 تأكيد",
+    "shortcutSearch": "F3 بحث صنف",
+    "shortcutDiscount": "F4 خصم",
+    "shortcutPark": "F8 تعليق",
+    "shortcutParked": "F9 المعلّق",
+    "resumeParked": "استكمال"
   },
   "settings": {
     "title": "الإعدادات",
@@ -236,7 +254,7 @@
     "businessAddress": "عنوان المنشأة",
     "businessPhone": "هاتف المنشأة",
     "logo": "الشعار",
-    "exchangeRate": "سعر الصرف (دينار لكل دولار)",
+    "exchangeRate": "سعر الصرف (جنيه مصري)",
     "exchangeRateHistory": "سجل أسعار الصرف",
     "defaultCurrency": "العملة الافتراضية",
     "defaultPriceType": "نوع السعر الافتراضي",
@@ -262,6 +280,25 @@
     "deactivate": "تعطيل",
     "activate": "تفعيل"
   },
+  "staffAdvances": {
+    "title": "سلف الموظفين",
+    "add": "تسجيل سلفة",
+    "employee": "الموظف",
+    "amount": "المبلغ",
+    "date": "التاريخ",
+    "notes": "ملاحظة",
+    "month": "الشهر",
+    "total": "إجمالي السلف",
+    "count": "عدد السحوبات",
+    "day": "اليوم",
+    "recordedBy": "سجّل بواسطة",
+    "shift": "الوردية",
+    "cancel": "إلغاء السلفة",
+    "needShift": "افتح وردية أولاً قبل تسجيل سلفة",
+    "drawerLine": "سلف موظفين",
+    "empty": "لا توجد سلف في هذا الشهر",
+    "salaryHint": "تُخصم من الدرج فوراً وتُحسب على الراتب في نهاية الشهر"
+  },
   "errors": {
     "required": "هذا الحقل مطلوب",
     "invalidEmail": "البريد الإلكتروني غير صحيح",
@@ -286,9 +323,11 @@
     "meter": "متر"
   },
   "currencies": {
-    "USD": "دولار أمريكي",
-    "IQD": "دينار عراقي",
-    "usdSymbol": "$",
-    "iqdSymbol": "د.ع"
+    "USD": "جنيه مصري",
+    "IQD": "جنيه مصري",
+    "EGP": "جنيه مصري",
+    "usdSymbol": "ج.م",
+    "iqdSymbol": "ج.م",
+    "egpSymbol": "ج.م"
   }
 }

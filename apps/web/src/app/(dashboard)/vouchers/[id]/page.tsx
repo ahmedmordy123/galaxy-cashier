@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { vouchersService } from '@/services/vouchers.service'
+import { formatMoney } from '@/lib/currency'
+import { formatDateTime } from '@/lib/dates'
 
 type VoucherType = 'RECEIPT' | 'DISBURSEMENT'
 type EntityType = 'CUSTOMER' | 'SUPPLIER' | 'OTHER'
-type Currency = 'USD' | 'IQD'
 
 interface Voucher {
   id: string
@@ -16,7 +17,7 @@ interface Voucher {
   entityId: string | null
   entityName: string | null
   amount: string | number
-  currency: Currency
+  currency: string
   exchangeRate: string | number
   description: string
   createdAt: string
@@ -37,10 +38,6 @@ const ENTITY_LABELS: Record<EntityType, string> = {
   CUSTOMER: 'عميل',
   SUPPLIER: 'مورد',
   OTHER: 'أخرى',
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('ar-IQ')
 }
 
 export default function VoucherDetailPage() {
@@ -146,48 +143,16 @@ export default function VoucherDetailPage() {
             <div>
               <p className="text-xs text-gray-500 mb-0.5">المبلغ</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">
-                {Number(voucher.amount).toLocaleString('ar-IQ', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 3,
-                })}
+                {formatMoney(voucher.amount)}
               </p>
             </div>
 
-            {/* Currency */}
             <div>
               <p className="text-xs text-gray-500 mb-0.5">العملة</p>
-              <span
-                className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                  voucher.currency === 'USD'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-yellow-100 text-yellow-700'
-                }`}
-              >
-                {voucher.currency === 'USD' ? 'دولار أمريكي (USD)' : 'دينار عراقي (IQD)'}
+              <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-800">
+                جنيه مصري (ج.م)
               </span>
             </div>
-
-            {/* Exchange Rate (only for USD) */}
-            {voucher.currency === 'USD' && (
-              <div className="col-span-2">
-                <p className="text-xs text-gray-500 mb-0.5">سعر الصرف</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {Number(voucher.exchangeRate).toLocaleString('ar-IQ', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 3,
-                  })}{' '}
-                  دينار لكل دولار
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  ما يعادل:{' '}
-                  {(Number(voucher.amount) * Number(voucher.exchangeRate)).toLocaleString('ar-IQ', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  })}{' '}
-                  دينار
-                </p>
-              </div>
-            )}
 
             {/* Description */}
             <div className="col-span-2">
@@ -209,7 +174,7 @@ export default function VoucherDetailPage() {
             <div>
               <p className="text-xs text-gray-500 mb-0.5">تاريخ الإنشاء</p>
               <p className="text-sm font-medium text-gray-900 dark:text-white">
-                {formatDate(voucher.createdAt)}
+                {formatDateTime(voucher.createdAt)}
               </p>
             </div>
           </div>

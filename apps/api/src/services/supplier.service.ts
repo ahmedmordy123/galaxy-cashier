@@ -1,7 +1,7 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { CreateSupplierInput, UpdateSupplierInput } from '../validators/supplier.validator'
-
-const prisma = new PrismaClient()
+import { notFoundError, isPlausibleId } from '../utils/apiError'
+import { prisma } from '../db/prisma'
 
 export async function getSuppliers(params: {
   search?: string
@@ -13,7 +13,7 @@ export async function getSuppliers(params: {
   const where: Record<string, unknown> = { isActive: true }
   if (search) {
     where.OR = [
-      { name: { contains: search, mode: 'insensitive' } },
+      { name: { contains: search } },
       { phone: { contains: search } },
     ]
   }
@@ -43,7 +43,12 @@ export async function updateSupplier(id: string, data: UpdateSupplierInput) {
 }
 
 export async function softDeleteSupplier(id: string) {
-  return prisma.supplier.update({ where: { id }, data: { isActive: false } })
+  if (!isPlausibleId(id)) throw notFoundError()
+  const result = await prisma.supplier.updateMany({
+    where: { id, isActive: true },
+    data: { isActive: false },
+  })
+  if (result.count === 0) throw notFoundError()
 }
 
 export async function getSupplierStatement(id: string, from?: string, to?: string) {

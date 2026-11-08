@@ -1,19 +1,33 @@
 import { z } from 'zod'
+import { currencySchema, priceTypeSchema } from './currency.schema'
+import {
+  idString,
+  nonNegativeNumber,
+  optionalId,
+  percentNumber,
+  positiveNumber,
+} from './zod-helpers'
 
 export const salesLineSchema = z.object({
-  itemId: z.string().cuid(),
-  quantity: z.number().positive(),
-  unitPrice: z.number().nonnegative(),
-  discount: z.number().min(0).max(100).default(0),
+  itemId: idString,
+  quantity: positiveNumber,
+  unitPrice: nonNegativeNumber,
+  discount: percentNumber.default(0),
+  serialNumber: z.preprocess(
+    (v) => (v === '' ? null : v),
+    z.string().nullable().optional()
+  ),
 })
 
 export const createSalesInvoiceSchema = z.object({
-  customerId: z.string().cuid().optional().nullable(),
-  priceType: z.enum(['RETAIL', 'WHOLESALE', 'SPECIAL', 'DOLLAR', 'DINAR']),
+  customerId: optionalId,
+  warehouseId: optionalId,
+  priceType: priceTypeSchema,
   paymentType: z.enum(['CASH', 'CREDIT']),
-  currency: z.enum(['USD', 'IQD']),
-  exchangeRate: z.number().positive(),
-  discount: z.number().min(0).default(0),
+  currency: currencySchema,
+  exchangeRate: positiveNumber.default(1),
+  discountType: z.enum(['PERCENT', 'FIXED']).default('PERCENT'),
+  discount: nonNegativeNumber.default(0),
   notes: z.string().optional(),
   items: z.array(salesLineSchema).min(1),
 })

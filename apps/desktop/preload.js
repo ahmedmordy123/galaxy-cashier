@@ -1,9 +1,9 @@
 'use strict'
 
-const { contextBridge } = require('electron')
+const { contextBridge, ipcRenderer } = require('electron')
 
-// Expose a minimal, safe surface to the renderer
 contextBridge.exposeInMainWorld('desktop', {
   platform: process.platform,
   isElectron: true,
+  selectBackupFolder: () => ipcRenderer.invoke('select-backup-folder'),
 })

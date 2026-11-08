@@ -1,0 +1,92 @@
+{
+  "at": "2026-11-05T19:02:05.382Z",
+  "tag": "POSR-MW3WWS7S",
+  "pass": 14,
+  "fail": 0,
+  "steps": [
+    {
+      "name": "create-item",
+      "expected": "id",
+      "actual": "cmw3wwv680005tan8m5k0290k",
+      "ok": true
+    },
+    {
+      "name": "search-pageSize-30",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "name": "create-draft-sale",
+      "expected": "id",
+      "actual": "cmw3wwvk8000atan8o9u8sqch",
+      "ok": true
+    },
+    {
+      "name": "park-sale",
+      "expected": 200,
+      "actual": 200,
+      "ok": true
+    },
+    {
+      "name": "parked-list-contains",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "name": "resume-parked-status",
+      "expected": "PARKED",
+      "actual": "PARKED",
+      "ok": true
+    },
+    {
+      "name": "create-expense",
+      "expected": "201/200",
+      "actual": 201,
+      "ok": true
+    },
+    {
+      "name": "expense-analysis-total>=75",
+      "expected": ">=75",
+      "actual": 75,
+      "ok": true
+    },
+    {
+      "name": "expense-analysis-categories",
+      "expected": "array",
+      "actual": true,
+      "ok": true
+    },
+    {
+      "name": "inventory-as-of-200",
+      "expected": 200,
+      "actual": 200,
+      "ok": true
+    },
+    {
+      "name": "inventory-as-of-qty",
+      "expected": 40,
+      "actual": 40,
+      "ok": true
+    },
+    {
+      "name": "inventory-as-of-cost-value",
+      "expected": 400,
+      "actual": 400,
+      "ok": true
+    },
+    {
+      "name": "period-compare-200",
+      "expected": 200,
+      "actual": 200,
+      "ok": true
+    },
+    {
+      "name": "period-compare-same-range-diff-0",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    }
+  ]
+}

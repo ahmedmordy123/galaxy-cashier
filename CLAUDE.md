@@ -145,7 +145,7 @@ LAN private-IP regex also auto-allowed in `apps/api/src/index.ts`.
 | StockTransfer       | type(IN/OUT), itemId, quantity, reason(5 types)                  |
 | PaymentVoucher      | voucherNumber, type(DISBURSEMENT/RECEIPT), entityType, amount    |
 | CashStatement       | date(unique), openingBalance/closingBalance USD+IQD, isClosed    |
-| ExchangeRateHistory | rateIQD, changedById                                             |
+| ExchangeRateHistory | rateEGP, changedById                                             |
 | Settings            | key(unique), value                                               |
 
 **Rules:** All monetary = Decimal(15,3) | Soft deletes (isActive) | Full index coverage

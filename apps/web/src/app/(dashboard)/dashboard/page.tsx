@@ -2,21 +2,36 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { cashStatementService } from '@/services/cashStatement.service'
 import { stockService } from '@/services/stock.service'
+import api from '@/lib/api'
 import { FinancialSummary } from '@/components/dashboard/FinancialSummary'
+import { ProductMovementSummary } from '@/components/dashboard/ProductMovementSummary'
+import { formatNumber } from '@/lib/currency'
+import i18n from '@/lib/i18n'
 
 interface DaySummary {
-  cashSalesIQD: number
+  cashSalesEGP: number
   cashSalesUSD: number
   creditSales: number
   receipts: number
   disbursements: number
   expenses: number
-  closingBalanceIQD: number
+  closingBalanceEGP: number
   closingBalanceUSD: number
   isClosed: boolean
+}
+
+interface ShiftSummary {
+  salesCount: number
+  cashSales: number
+  creditSales: number
+  totalSales: number
+  openingCash: number
+  expectedCash: number
+  openedAt: string
 }
 
 interface StatCardProps {
@@ -56,73 +71,138 @@ function StatCard({ label, value, sub, color, href, loading }: StatCardProps) {
   )
 }
 
-function fmt(n: number, decimals = 0): string {
-  return n.toLocaleString('ar-IQ', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+function fmt(n: number, _decimals = 0): string {
+  return formatNumber(n)
+}
+
+const CASHIER_HOME_BUTTONS = [
+  { href: '/sales/new', labelKey: 'home.newSale', icon: '🧾' },
+  { href: '/shifts', labelKey: 'home.treasury', icon: '💰' },
+  { href: '/customers', labelKey: 'home.customers', icon: '👥' },
+  { href: '/items', labelKey: 'home.items', icon: '📦' },
+] as const
+
+function CashierHome({ userName }: { userName?: string }) {
+  return (
+    <div dir="rtl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">لوحة التحكم</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          مرحباً، {userName} — {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
+        {CASHIER_HOME_BUTTONS.map((btn) => (
+          <Link
+            key={btn.href}
+            href={btn.href}
+            className="flex items-center gap-4 min-h-[88px] px-6 py-5 rounded-2xl border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm hover:border-sky-400 hover:shadow-md transition-all text-gray-900 dark:text-white"
+          >
+            <span className="text-4xl shrink-0" aria-hidden>{btn.icon}</span>
+            <span className="text-xl font-bold">{i18n.t(btn.labelKey)}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const isCashier = user?.role === 'CASHIER'
+  const isLauncherHome = user?.role === 'CASHIER' || user?.role === 'STAFF'
   const [summary, setSummary] = useState<DaySummary | null>(null)
+  const [shiftSummary, setShiftSummary] = useState<ShiftSummary | null>(null)
+  const [hasOpenShift, setHasOpenShift] = useState(false)
   const [lowStockCount, setLowStockCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!isLauncherHome)
 
   useEffect(() => {
+    if (isLauncherHome) return
     async function load() {
       setLoading(true)
       try {
-        const [statRes, stockRes] = await Promise.all([
+        const [statRes, stockRes, shiftSumRes] = await Promise.all([
           cashStatementService.getToday().catch(() => null),
           stockService.getLowStock().catch(() => null),
+          api.get('/api/ops/shifts/current/summary').catch(() => ({ data: { data: null } })),
         ])
         if (statRes?.data) setSummary(statRes.data)
         if (stockRes?.data) setLowStockCount(Array.isArray(stockRes.data) ? stockRes.data.length : 0)
+        const ss = shiftSumRes.data?.data as ShiftSummary | null
+        setShiftSummary(ss)
+        setHasOpenShift(!!ss)
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [])
+  }, [isLauncherHome])
 
-  const todaySalesIQD = summary ? summary.cashSalesIQD + summary.creditSales : 0
-  const cashBalance = summary ? summary.closingBalanceIQD : 0
-  const cashBalanceUSD = summary ? summary.closingBalanceUSD : 0
+  if (isLauncherHome) {
+    return <CashierHome userName={user?.name} />
+  }
+
+  const storeTodaySales = summary ? summary.cashSalesEGP + summary.creditSales : 0
+  const storeCashBalance = summary ? summary.closingBalanceEGP : 0
+
+  const displaySales = hasOpenShift && shiftSummary ? shiftSummary.totalSales : storeTodaySales
+  const displayCash = hasOpenShift && shiftSummary ? shiftSummary.expectedCash : storeCashBalance
+  const displayCashSub = hasOpenShift && shiftSummary
+    ? `افتتاح: ${fmt(shiftSummary.openingCash)} + نقدي الوردية: ${fmt(shiftSummary.cashSales)} ج.م`
+    : summary
+      ? `نقدي: ${fmt(summary.cashSalesEGP)} | آجل: ${fmt(summary.creditSales)} ج.م · إجمالي المحل اليوم`
+      : undefined
+  const displaySalesSub = hasOpenShift && shiftSummary
+    ? `${shiftSummary.salesCount} فاتورة في ورديتك${storeTodaySales !== shiftSummary.totalSales ? ` · المحل اليوم: ${fmt(storeTodaySales)} ج.م` : ''}`
+    : !hasOpenShift
+      ? 'فواتير المحل المؤكدة اليوم (كل المستخدمين)'
+      : undefined
 
   return (
     <div dir="rtl">
-      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">لوحة التحكم</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          مرحباً، {user?.name} — {new Date().toLocaleDateString('ar-IQ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          مرحباً، {user?.name} — {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
+        {hasOpenShift && shiftSummary && (
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-2">
+            وردية مفتوحة منذ {new Date(shiftSummary.openedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+            — الأرقام بالأسفل لورديتك الحالية ما لم يُذكر «المحل اليوم».
+          </p>
+        )}
+        {!hasOpenShift && !loading && storeTodaySales > 0 && (
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+            ملخص «اليوم» يجمع كل فواتير المحل المؤكدة اليوم (حتى لو بدون فتح وردية). لرقابة الكاشير افتح وردية من صفحة وردية الكاشير.
+          </p>
+        )}
       </div>
 
-      {/* Today's financial summary — hidden from CASHIER */}
       {!isCashier && <FinancialSummary />}
+      {!isCashier && <ProductMovementSummary />}
 
-      {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
-          label="مبيعات اليوم (نقدي + آجل)"
-          value={loading ? '...' : `${fmt(todaySalesIQD)} د.ع`}
-          sub={summary ? `نقدي: ${fmt(summary.cashSalesIQD)} | آجل: ${fmt(summary.creditSales)}` : undefined}
+          label={hasOpenShift ? 'مبيعات ورديتك (نقدي + آجل)' : 'مبيعات اليوم (نقدي + آجل)'}
+          value={loading ? '...' : `${fmt(displaySales)} ج.م`}
+          sub={loading ? undefined : displaySalesSub}
           color="blue"
           href="/sales"
           loading={loading}
         />
         <StatCard
-          label="رصيد الصندوق"
-          value={loading ? '...' : `${fmt(cashBalance)} د.ع`}
-          sub={cashBalanceUSD > 0 ? `${fmt(cashBalanceUSD, 2)} $` : undefined}
+          label={hasOpenShift ? 'نقدية متوقعة (الوردية)' : 'رصيد الصندوق (تقدير اليوم)'}
+          value={loading ? '...' : `${fmt(displayCash)} ج.م`}
+          sub={loading ? undefined : displayCashSub}
           color="green"
-          href="/cash-statement"
+          href={hasOpenShift ? '/shifts' : '/cash-statement'}
           loading={loading}
         />
         <StatCard
           label="المقبوضات اليوم"
-          value={loading ? '...' : `${fmt(summary?.receipts ?? 0)} د.ع`}
-          sub={summary ? `مدفوعات: ${fmt(summary.disbursements)} د.ع` : undefined}
+          value={loading ? '...' : `${fmt(summary?.receipts ?? 0)} ج.م`}
+          sub={summary ? `مدفوعات: ${fmt(summary.disbursements)} ج.م` : undefined}
           color="amber"
           href="/vouchers"
           loading={loading}
@@ -137,11 +217,11 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Quick links */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
         <h2 className="text-base font-semibold text-gray-800 dark:text-white mb-4">روابط سريعة</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {([
+            { href: '/quotes/new',       label: 'عرض سعر للعميل',     icon: '📝', roles: null },
             { href: '/sales/new',      label: 'فاتورة مبيعات جديدة',  icon: '🧾', roles: null },
             { href: '/purchases/new',  label: 'فاتورة مشتريات جديدة', icon: '🛒', roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
             { href: '/vouchers/new',   label: 'سند قبض / صرف',       icon: '📋', roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },

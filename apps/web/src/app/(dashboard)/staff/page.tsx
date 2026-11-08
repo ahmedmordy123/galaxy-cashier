@@ -306,7 +306,7 @@ export default function StaffPage() {
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
                       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                        منذ {new Date(s.createdAt).toLocaleDateString('ar-IQ')}
+                        منذ {new Date(s.createdAt).toLocaleDateString('ar-EG')}
                       </div>
                     </td>
 

@@ -4,11 +4,23 @@ import {
   getSalesInvoices,
   getSalesInvoiceById,
   createSalesInvoice,
+  updateSalesInvoice,
   confirmInvoice,
   cancelInvoice,
   returnInvoice,
   partialReturnInvoice,
+  parkInvoice,
+  listParkedInvoices,
 } from '../services/sales.service'
+import { isCreditError, respondCreditError } from '../utils/creditErrors'
+
+function sendCreditIfAny(res: Response, error: unknown): boolean {
+  if (isCreditError(error)) {
+    respondCreditError(res, error)
+    return true
+  }
+  return false
+}
 
 export async function listInvoices(req: Request, res: Response) {
   try {
@@ -38,6 +50,42 @@ export async function getInvoice(req: Request, res: Response) {
   }
 }
 
+export async function updateInvoice(req: Request, res: Response) {
+  try {
+    const parsed = createSalesInvoiceSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: parsed.error.flatten().fieldErrors,
+      })
+    }
+    const expectedUpdatedAt =
+      typeof req.body?.updatedAt === 'string' ? req.body.updatedAt : undefined
+    const invoice = await updateSalesInvoice(req.params.id, parsed.data, req.user!.id, expectedUpdatedAt)
+    res.json({ success: true, data: invoice })
+  } catch (error: unknown) {
+    if (sendCreditIfAny(res, error)) return
+    const msg = error instanceof Error ? error.message : 'Failed to update invoice'
+    if (msg === 'INVOICE_NOT_FOUND') {
+      return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' })
+    }
+    if (msg === 'INVOICE_NOT_EDITABLE') {
+      return res.status(400).json({ success: false, error: 'لا يمكن تعديل هذه الفاتورة' })
+    }
+    if (msg === 'CREDIT_REQUIRES_CUSTOMER') {
+      return res.status(400).json({ success: false, error: 'الفاتورة الآجلة تتطلب تحديد عميل' })
+    }
+    if (msg === 'INVOICE_MODIFIED_ELSEWHERE') {
+      return res.status(409).json({
+        success: false,
+        error: 'الفاتورة اتعدّلت من جهاز تاني — حمّلها من جديد',
+      })
+    }
+    res.status(500).json({ success: false, error: msg })
+  }
+}
+
 export async function createInvoice(req: Request, res: Response) {
   try {
     const parsed = createSalesInvoiceSchema.safeParse(req.body)
@@ -51,6 +99,7 @@ export async function createInvoice(req: Request, res: Response) {
     const invoice = await createSalesInvoice(parsed.data, req.user!.id)
     res.status(201).json({ success: true, data: invoice })
   } catch (error: unknown) {
+    if (sendCreditIfAny(res, error)) return
     const msg = error instanceof Error ? error.message : 'Failed to create invoice'
     if (msg === 'CREDIT_REQUIRES_CUSTOMER') {
       return res.status(400).json({ success: false, error: 'الفاتورة الآجلة تتطلب تحديد عميل' })
@@ -62,9 +111,19 @@ export async function createInvoice(req: Request, res: Response) {
 export async function confirmInvoiceHandler(req: Request, res: Response) {
   try {
     const amountPaid = req.body?.amountPaid != null ? Number(req.body.amountPaid) : undefined
-    const invoice = await confirmInvoice(req.params.id, req.user!.id, amountPaid)
+    const payments = Array.isArray(req.body?.payments) ? req.body.payments : undefined
+    const expectedUpdatedAt =
+      typeof req.body?.updatedAt === 'string' ? req.body.updatedAt : undefined
+    const invoice = await confirmInvoice(
+      req.params.id,
+      req.user!.id,
+      amountPaid,
+      payments,
+      expectedUpdatedAt,
+    )
     res.json({ success: true, data: invoice })
   } catch (error: unknown) {
+    if (sendCreditIfAny(res, error)) return
     const msg = error instanceof Error ? error.message : 'Failed to confirm invoice'
     if (msg === 'INVOICE_NOT_FOUND') {
       return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' })
@@ -72,12 +131,52 @@ export async function confirmInvoiceHandler(req: Request, res: Response) {
     if (msg === 'INVOICE_NOT_DRAFT') {
       return res.status(400).json({ success: false, error: 'لا يمكن تأكيد فاتورة ليست في حالة مسودة' })
     }
+    if (msg === 'INVOICE_ALREADY_CONFIRMED') {
+      return res.status(409).json({ success: false, error: 'تم تأكيد هذه الفاتورة مسبقاً' })
+    }
+    if (msg === 'INVOICE_MODIFIED_ELSEWHERE') {
+      return res.status(409).json({
+        success: false,
+        error: 'الفاتورة اتعدّلت من جهاز تاني — حمّلها من جديد',
+      })
+    }
     if (msg.startsWith('INSUFFICIENT_STOCK:')) {
       const parts = msg.split(':')
       const itemName = parts[1] || 'المنتج'
       return res.status(400).json({ success: false, error: `الكمية غير كافية للمنتج: ${itemName}` })
     }
-    res.status(500).json({ success: false, error: 'Failed to confirm invoice' })
+    if (msg.startsWith('SERIAL_REQUIRED:')) {
+      return res.status(400).json({ success: false, error: `مطلوب سيريال للصنف: ${msg.split(':')[1]}` })
+    }
+    if (msg.startsWith('SERIAL_QTY_ONE:')) {
+      return res.status(400).json({
+        success: false,
+        error: `الصنف ${msg.split(':')[1]} يتطلب كمية 1 لكل سيريال — أضف سطراً لكل قطعة`,
+      })
+    }
+    if (msg.startsWith('SERIAL_NOT_FOUND:')) {
+      return res.status(400).json({ success: false, error: `السيريال غير موجود: ${msg.split(':')[1]}` })
+    }
+    res.status(500).json({ success: false, error: msg })
+  }
+}
+
+export async function parkInvoiceHandler(req: Request, res: Response) {
+  try {
+    const invoice = await parkInvoice(req.params.id)
+    res.json({ success: true, data: invoice })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to park'
+    res.status(400).json({ success: false, error: msg })
+  }
+}
+
+export async function listParkedHandler(_req: Request, res: Response) {
+  try {
+    const data = await listParkedInvoices()
+    res.json({ success: true, data })
+  } catch {
+    res.status(500).json({ success: false, error: 'Failed to list parked' })
   }
 }
 

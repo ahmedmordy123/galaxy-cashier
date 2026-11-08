@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -16,6 +15,8 @@ model User {
   role         String   @default("CASHIER")
   language     String   @default("ar")
   isActive     Boolean  @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -25,6 +26,11 @@ model User {
   stockTransfers      StockTransfer[]
   paymentVouchers     PaymentVoucher[]
   exchangeRateHistory ExchangeRateHistory[]
+  cashierShifts       CashierShift[]
+  stockCounts         StockCount[]
+  auditLogs           AuditLog[]
+  staffAdvancesReceived StaffAdvance[] @relation("StaffAdvanceEmployee")
+  staffAdvancesCreated  StaffAdvance[] @relation("StaffAdvanceCreatedBy")
 
   @@index([username])
   @@index([isActive])
@@ -46,7 +52,7 @@ model Supplier {
   phone     String?
   address   String?
   balance   Decimal  @default(0)
-  currency  String   @default("IQD")
+  currency  String   @default("EGP")
   notes     String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -56,6 +62,25 @@ model Supplier {
   purchaseInvoices PurchaseInvoice[]
 
   @@index([name])
+  @@index([isActive])
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  balances           StockBalance[]
+  stockCounts        StockCount[]
+  salesFrom          SalesInvoice[]       @relation("SalesWarehouse")
+  purchasesTo        PurchaseInvoice[]    @relation("PurchaseWarehouse")
+  transfersFrom      StockTransfer[]      @relation("TransferFrom")
+  transfersTo        StockTransfer[]      @relation("TransferTo")
+
   @@index([isActive])
 }
 
@@ -77,14 +102,27 @@ model Item {
   expiryDate     DateTime?
   supplierId     String?
   isActive       Boolean   @default(true)
+  isFavorite     Boolean   @default(false)
+  /// PARENT | VARIANT | SIMPLE
+  itemKind       String    @default("SIMPLE")
+  parentId       String?
+  size           String?
+  color          String?
+  trackSerial    Boolean   @default(false)
+  warrantyMonths Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   category          Category?             @relation(fields: [categoryId], references: [id])
   supplier          Supplier?             @relation(fields: [supplierId], references: [id])
+  parent            Item?                 @relation("ItemVariants", fields: [parentId], references: [id])
+  variants          Item[]                @relation("ItemVariants")
   salesInvoiceItems SalesInvoiceItem[]
   purchaseItems     PurchaseInvoiceItem[]
   stockTransfers    StockTransfer[]
+  balances          StockBalance[]
+  serials           ItemSerial[]
+  stockCountLines   StockCountLine[]
 
   @@index([barcode])
   @@index([categoryId])
@@ -92,6 +130,22 @@ model Item {
   @@index([isActive])
   @@index([stockQty])
   @@index([expiryDate])
+  @@index([parentId])
+  @@index([isFavorite])
+}
+
+model StockBalance {
+  id          String  @id @default(cuid())
+  itemId      String
+  warehouseId String
+  qty         Decimal @default(0)
+
+  item      Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, warehouseId])
+  @@index([warehouseId])
+  @@index([itemId])
 }
 
 model Customer {
@@ -102,7 +156,7 @@ model Customer {
   type        String   @default("RETAIL")
   creditLimit Decimal  @default(0)
   balance     Decimal  @default(0)
-  currency    String   @default("IQD")
+  currency    String   @default("EGP")
   notes       String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -120,11 +174,15 @@ model SalesInvoice {
   id            String   @id @default(cuid())
   invoiceNumber String   @unique
   customerId    String?
+  warehouseId   String?
+  shiftId       String?
   type          String   @default("CASH")
   priceType     String   @default("RETAIL")
-  currency      String   @default("IQD")
-  exchangeRate  Decimal  @default(1480)
+  currency      String   @default("EGP")
+  exchangeRate  Decimal  @default(1)
   subtotal      Decimal  @default(0)
+  /// PERCENT | FIXED — value stored in discount
+  discountType  String   @default("PERCENT")
   discount      Decimal  @default(0)
   tax           Decimal  @default(0)
   total         Decimal  @default(0)
@@ -132,14 +190,18 @@ model SalesInvoice {
   balance       Decimal  @default(0)
   notes         String?
   createdById   String
+  /// DRAFT | PARKED | CONFIRMED | CANCELLED | RETURNED | QUOTE
   status        String   @default("DRAFT")
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  customer  Customer?          @relation(fields: [customerId], references: [id])
-  createdBy User               @relation(fields: [createdById], references: [id])
-  items     SalesInvoiceItem[]
+  customer   Customer?          @relation(fields: [customerId], references: [id])
+  warehouse  Warehouse?         @relation("SalesWarehouse", fields: [warehouseId], references: [id])
+  shift      CashierShift?      @relation(fields: [shiftId], references: [id])
+  createdBy  User               @relation(fields: [createdById], references: [id])
+  items      SalesInvoiceItem[]
+  payments   SalesPayment[]
 
   @@index([invoiceNumber])
   @@index([customerId])
@@ -147,31 +209,55 @@ model SalesInvoice {
   @@index([status])
   @@index([createdAt])
   @@index([type])
+  @@index([warehouseId])
+  @@index([shiftId])
 }
 
 model SalesInvoiceItem {
-  id         String    @id @default(cuid())
-  invoiceId  String
-  itemId     String
-  quantity   Decimal
-  unitPrice  Decimal
-  currency   String    @default("IQD")
-  subtotal   Decimal
-  expiryDate DateTime?
+  id           String    @id @default(cuid())
+  invoiceId    String
+  itemId       String
+  quantity     Decimal
+  unitPrice    Decimal
+  unitCost     Decimal   @default(0)
+  currency     String    @default("EGP")
+  subtotal     Decimal
+  expiryDate   DateTime?
+  serialNumber String?
 
   invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   item    Item         @relation(fields: [itemId], references: [id])
+  serials ItemSerial[]
 
   @@index([invoiceId])
   @@index([itemId])
+}
+
+model SalesPayment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  /// CASH | CARD | WALLET | CREDIT
+  method    String
+  amount    Decimal
+  createdAt DateTime @default(now())
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([method])
 }
 
 model PurchaseInvoice {
   id            String   @id @default(cuid())
   invoiceNumber String   @unique
   supplierId    String
-  currency      String   @default("IQD")
-  exchangeRate  Decimal  @default(1480)
+  warehouseId   String?
+  /// Optional supplier invoice reference (unique per supplier when set)
+  supplierRef   String?
+  /// CASH | CREDIT — cash purchase does not increase supplier balance
+  paymentType   String   @default("CREDIT")
+  currency      String   @default("EGP")
+  exchangeRate  Decimal  @default(1)
   subtotal      Decimal  @default(0)
   discount      Decimal  @default(0)
   total         Decimal  @default(0)
@@ -179,12 +265,14 @@ model PurchaseInvoice {
   balance       Decimal  @default(0)
   notes         String?
   createdById   String
+  /// DRAFT | CONFIRMED | CANCELLED | RETURNED
   status        String   @default("DRAFT")
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   supplier  Supplier              @relation(fields: [supplierId], references: [id])
+  warehouse Warehouse?            @relation("PurchaseWarehouse", fields: [warehouseId], references: [id])
   createdBy User                  @relation(fields: [createdById], references: [id])
   items     PurchaseInvoiceItem[]
 
@@ -193,6 +281,8 @@ model PurchaseInvoice {
   @@index([createdById])
   @@index([status])
   @@index([createdAt])
+  @@index([warehouseId])
+  @@unique([supplierId, supplierRef])
 }
 
 model PurchaseInvoiceItem {
@@ -201,7 +291,7 @@ model PurchaseInvoiceItem {
   itemId     String
   quantity   Decimal
   unitCost   Decimal
-  currency   String    @default("IQD")
+  currency   String    @default("EGP")
   subtotal   Decimal
   expiryDate DateTime?
 
@@ -227,8 +317,8 @@ model Expense {
   categoryId   String
   description  String
   amount       Decimal
-  currency     String   @default("IQD")
-  exchangeRate Decimal  @default(1480)
+  currency     String   @default("EGP")
+  exchangeRate Decimal  @default(1)
   paidBy       String?
   date         DateTime @default(now())
   createdById  String
@@ -247,22 +337,137 @@ model Expense {
 }
 
 model StockTransfer {
-  id          String   @id @default(cuid())
-  type        String
-  itemId      String
-  quantity    Decimal
-  reason      String
-  createdById String
-  notes       String?
-  createdAt   DateTime @default(now())
+  id              String   @id @default(cuid())
+  type            String
+  itemId          String
+  quantity        Decimal
+  reason          String
+  createdById     String
+  notes           String?
+  fromWarehouseId String?
+  toWarehouseId   String?
+  avgCostAfter    Decimal  @default(0)
+  createdAt       DateTime @default(now())
 
-  item      Item @relation(fields: [itemId], references: [id])
-  createdBy User @relation(fields: [createdById], references: [id])
+  item          Item       @relation(fields: [itemId], references: [id])
+  createdBy     User       @relation(fields: [createdById], references: [id])
+  fromWarehouse Warehouse? @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse? @relation("TransferTo", fields: [toWarehouseId], references: [id])
 
   @@index([itemId])
   @@index([createdById])
   @@index([createdAt])
   @@index([type])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+}
+
+model StockCount {
+  id          String   @id @default(cuid())
+  warehouseId String
+  status      String   @default("DRAFT")
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id])
+  createdBy User            @relation(fields: [createdById], references: [id])
+  lines     StockCountLine[]
+
+  @@index([warehouseId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model StockCountLine {
+  id           String  @id @default(cuid())
+  countId      String
+  itemId       String
+  systemQty    Decimal @default(0)
+  countedQty   Decimal @default(0)
+  unitCostUsed Decimal @default(0)
+
+  count StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  item  Item       @relation(fields: [itemId], references: [id])
+
+  @@index([countId])
+  @@index([itemId])
+}
+
+model ItemSerial {
+  id                  String    @id @default(cuid())
+  itemId              String
+  serial              String
+  /// IN_STOCK | SOLD | RETURNED
+  status              String    @default("IN_STOCK")
+  warrantyMonths      Int       @default(0)
+  warrantyStart       DateTime?
+  warrantyEnd         DateTime?
+  salesInvoiceItemId  String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  item             Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  salesInvoiceItem SalesInvoiceItem? @relation(fields: [salesInvoiceItemId], references: [id])
+
+  @@unique([itemId, serial])
+  @@index([serial])
+  @@index([status])
+}
+
+model CashierShift {
+  id           String    @id @default(cuid())
+  userId       String
+  openedAt     DateTime  @default(now())
+  closedAt     DateTime?
+  openingCash  Decimal   @default(0)
+  closingCash  Decimal?
+  expectedCash Decimal?
+  /// Cash from invoice CASH payments during shift
+  shiftCashIn      Decimal? @default(0)
+  shiftCashRefunds Decimal? @default(0)
+  shiftReceipts    Decimal? @default(0)
+  shiftDisbursements Decimal? @default(0)
+  shiftExpenses    Decimal? @default(0)
+  /// Staff salary advances paid from the drawer during this shift
+  shiftStaffAdvances Decimal? @default(0)
+  notes        String?
+  /// OPEN | CLOSED
+  status       String    @default("OPEN")
+
+  user    User           @relation(fields: [userId], references: [id])
+  invoices SalesInvoice[]
+  staffAdvances StaffAdvance[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([openedAt])
+}
+
+/// Salary advance taken from the cash drawer, tracked per employee and calendar day.
+model StaffAdvance {
+  id           String   @id @default(cuid())
+  employeeId   String
+  amount       Decimal
+  currency     String   @default("EGP")
+  exchangeRate Decimal  @default(1)
+  date         DateTime
+  notes        String?
+  shiftId      String
+  createdById  String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee  User         @relation("StaffAdvanceEmployee", fields: [employeeId], references: [id])
+  createdBy User         @relation("StaffAdvanceCreatedBy", fields: [createdById], references: [id])
+  shift     CashierShift @relation(fields: [shiftId], references: [id])
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([shiftId])
+  @@index([isActive])
 }
 
 model PaymentVoucher {
@@ -272,8 +477,8 @@ model PaymentVoucher {
   entityType    String   @default("OTHER")
   entityId      String?
   amount        Decimal
-  currency      String   @default("IQD")
-  exchangeRate  Decimal  @default(1480)
+  currency      String   @default("EGP")
+  exchangeRate  Decimal  @default(1)
   description   String
   createdById   String
   createdAt     DateTime @default(now())
@@ -287,19 +492,20 @@ model PaymentVoucher {
   @@index([createdAt])
 }
 
+/// Monetary columns: EGP (Egypt). Legacy DB column names *IQD kept via @map where needed.
 model CashStatement {
   id                String   @id @default(cuid())
   date              DateTime @unique
   openingBalanceUSD Decimal  @default(0)
-  openingBalanceIQD Decimal  @default(0)
+  openingBalanceEGP Decimal  @default(0) @map("openingBalanceIQD")
   cashSalesUSD      Decimal  @default(0)
-  cashSalesIQD      Decimal  @default(0)
+  cashSalesEGP      Decimal  @default(0) @map("cashSalesIQD")
   creditSales       Decimal  @default(0)
   receipts          Decimal  @default(0)
   disbursements     Decimal  @default(0)
   expenses          Decimal  @default(0)
   closingBalanceUSD Decimal  @default(0)
-  closingBalanceIQD Decimal  @default(0)
+  closingBalanceEGP Decimal  @default(0) @map("closingBalanceIQD")
   isClosed          Boolean  @default(false)
   notes             String?
   createdAt         DateTime @default(now())
@@ -311,7 +517,7 @@ model CashStatement {
 
 model ExchangeRateHistory {
   id          String   @id @default(cuid())
-  rateIQD     Decimal
+  rateEGP     Decimal  @map("rateIQD")
   changedById String
   createdAt   DateTime @default(now())
 
@@ -328,4 +534,41 @@ model Settings {
   updatedAt   DateTime @updatedAt
 
   @@index([key])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String
+  entityType  String
+  entityId    String?
+  detailsJson String?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+}
+
+/// ETA (Egyptian Tax Authority) submission queue — inactive when eta_enabled=false
+model EtaDocument {
+  id             String   @id @default(cuid())
+  salesInvoiceId String
+  documentType   String   @default("RECEIPT")
+  status         String   @default("PENDING")
+  payloadJson    String?
+  responseJson   String?
+  uuid           String?
+  retryCount     Int      @default(0)
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([salesInvoiceId])
+  @@index([status])
+  @@index([createdAt])
 }

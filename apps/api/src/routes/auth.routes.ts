@@ -10,18 +10,19 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
-const loginLimiter = rateLimit({
+const loginIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
-  keyGenerator: (req) => req.ip + ':login',
-  message: { success: false, error: 'Too many login attempts. Try again in 15 minutes.' },
+  max: 25,
+  keyGenerator: (req) => `${req.ip}:login`,
+  skipSuccessfulRequests: true,
+  message: { success: false, error: 'محاولات دخول كثيرة من هذا الجهاز. حاول بعد 15 دقيقة.' },
   standardHeaders: true,
   legacyHeaders: false,
 })
 
 const router = Router()
 
-router.post('/login', loginLimiter, validateRequest(loginSchema), login)
+router.post('/login', loginIpLimiter, validateRequest(loginSchema), login)
 router.post('/refresh', refresh)
 router.post('/logout', logout)
 router.get('/me', verifyToken, me)

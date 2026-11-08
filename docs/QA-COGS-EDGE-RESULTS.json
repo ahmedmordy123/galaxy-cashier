@@ -1,0 +1,55 @@
+{
+  "at": "2026-11-08T11:33:32.347Z",
+  "results": [
+    {
+      "name": "same-day return: cogs = remaining confirmed only (40)",
+      "ok": true,
+      "detail": "cogs=40 gross=60 net=100"
+    },
+    {
+      "name": "same-day return: gross = net - cogs",
+      "ok": true,
+      "detail": "gross=60"
+    },
+    {
+      "name": "same-day return: cogs not wiped to 0",
+      "ok": true,
+      "detail": "cogs=40"
+    },
+    {
+      "name": "cost change: first sale unitCost stays 25",
+      "ok": true,
+      "detail": "unitCost=25"
+    },
+    {
+      "name": "cost change: second sale unitCost = 50",
+      "ok": true,
+      "detail": "unitCost=50"
+    },
+    {
+      "name": "cost change: today cogs matches sum of snapshotted unitCosts",
+      "ok": true,
+      "detail": "api=115 sql=115"
+    },
+    {
+      "name": "cancel confirmed sale HTTP",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "cancel same day: netSales drops by ~100",
+      "ok": true,
+      "detail": "before=400 after=300"
+    },
+    {
+      "name": "cancel same day: cogs drops by ~30",
+      "ok": true,
+      "detail": "beforeCogs=145 afterCogs=115"
+    },
+    {
+      "name": "cancel same day: cancelled invoice not in confirmed cogs",
+      "ok": true,
+      "detail": "gross=185"
+    }
+  ]
+}

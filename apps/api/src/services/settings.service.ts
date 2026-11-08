@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
 
-const prisma = new PrismaClient()
+import bcrypt from 'bcryptjs'
+import { prisma } from '../db/prisma'
 
 // ─── Settings functions ───────────────────────────────────────────────────────
 
@@ -14,6 +13,44 @@ export async function getAllSettings(): Promise<Record<string, string>> {
 }
 
 export async function updateSettings(data: Record<string, string>): Promise<Record<string, string>> {
+  if (data.backup_directory !== undefined && data.backup_directory.trim()) {
+    const { sanitizeBackupDirectory } = await import('../utils/dataPaths')
+    const { assertBackupPathWritable, isPathUnderGoogleDrive, detectGoogleDrive } = await import(
+      '../utils/googleDrive'
+    )
+    const sanitized = sanitizeBackupDirectory(data.backup_directory)
+    if (!sanitized) {
+      throw new Error('مسار النسخ الاحتياطي غير صالح — استخدم مساراً مطلقاً مثل D:\\Backups\\CASR')
+    }
+    const writable = assertBackupPathWritable(sanitized)
+    if (!writable.ok) {
+      throw new Error(writable.error)
+    }
+    data.backup_directory = sanitized
+    const gd = detectGoogleDrive()
+    if (!isPathUnderGoogleDrive(sanitized, gd.roots)) {
+      // Soft: still allow, but callers can read hint from status. Store flag in description via separate key optional.
+      data.backup_path_drive_warning = 'true'
+    } else {
+      data.backup_path_drive_warning = 'false'
+    }
+  }
+
+  // Secondary path (USB): sanitize only — may be absent at save time; mirror is best-effort.
+  if (data.backup_directory_secondary !== undefined) {
+    const { sanitizeBackupDirectory } = await import('../utils/dataPaths')
+    const trimmed = data.backup_directory_secondary.trim()
+    if (!trimmed) {
+      data.backup_directory_secondary = ''
+    } else {
+      const sanitized = sanitizeBackupDirectory(trimmed)
+      if (!sanitized) {
+        throw new Error('مسار النسخة الثانية غير صالح — استخدم مساراً مطلقاً مثل E:\\CASR-Backups')
+      }
+      data.backup_directory_secondary = sanitized
+    }
+  }
+
   await Promise.all(
     Object.entries(data).map(([key, value]) =>
       prisma.settings.upsert({
@@ -23,6 +60,19 @@ export async function updateSettings(data: Record<string, string>): Promise<Reco
       })
     )
   )
+  if (
+    'backup_directory' in data ||
+    'backup_directory_secondary' in data ||
+    'backup_on_exit' in data ||
+    'auto_backup_enabled' in data
+  ) {
+    try {
+      const { syncBackupPathConfigFromSettings } = await import('./backup.service')
+      await syncBackupPathConfigFromSettings()
+    } catch {
+      /* non-fatal */
+    }
+  }
   return getAllSettings()
 }
 
@@ -34,7 +84,7 @@ export async function updateExchangeRate(rate: number, userId: string) {
     }),
     prisma.exchangeRateHistory.create({
       data: {
-        rateIQD: rate,
+        rateEGP: rate,
         changedById: userId,
       },
     }),

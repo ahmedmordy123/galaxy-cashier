@@ -5,6 +5,7 @@ import { stockService } from '@/services/stock.service'
 import api from '@/lib/api'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
 import { VirtualTable } from '@/components/ui/VirtualTable'
+import { formatMoney } from '@/lib/currency'
 
 type Tab = 'all' | 'lowStock' | 'expiring'
 
@@ -50,11 +51,11 @@ function daysUntil(dateStr: string): number {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('ar-IQ')
+  return new Date(dateStr).toLocaleDateString('ar-EG')
 }
 
 function formatNum(n: number | string, decimals = 0): string {
-  return Number(n).toLocaleString('ar-IQ', {
+  return Number(n).toLocaleString('ar-EG', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })
@@ -276,9 +277,9 @@ export default function InventoryPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500">{formatNum(item.minimumStock, 3)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatNum(item.costPrice)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatNum(item.costValue)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatNum(item.retailValue)}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatMoney(item.costPrice)}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatMoney(item.costValue)}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatMoney(item.retailValue)}</td>
                     </tr>
                   )
                 }}
@@ -289,10 +290,10 @@ export default function InventoryPage() {
                         الإجمالي ({allItems.length} صنف)
                       </td>
                       <td className="px-4 py-3 text-gray-900 dark:text-white">
-                        {formatNum(totalCostValue)} د.ع
+                        {formatMoney(totalCostValue)}
                       </td>
                       <td className="px-4 py-3 text-gray-900 dark:text-white">
-                        {formatNum(totalRetailValue)} د.ع
+                        {formatMoney(totalRetailValue)}
                       </td>
                     </tr>
                   ) : undefined

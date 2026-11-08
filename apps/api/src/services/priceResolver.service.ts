@@ -1,7 +1,6 @@
 import { Decimal } from '@prisma/client/runtime/library'
 
 type PriceType = 'RETAIL' | 'WHOLESALE' | 'SPECIAL' | 'DINAR' | 'DOLLAR'
-type Currency = 'IQD' | 'USD'
 
 export function resolvePrice(
   item: {
@@ -12,23 +11,18 @@ export function resolvePrice(
     dinarPrice: Decimal
   },
   priceType: PriceType,
-  currency: Currency,
-  exchangeRate: Decimal
+  _currency?: string,
+  _exchangeRate?: Decimal
 ): Decimal {
   switch (priceType) {
     case 'RETAIL':
+    case 'DINAR':
+    case 'DOLLAR':
       return item.retailPrice
     case 'WHOLESALE':
       return item.wholesalePrice
     case 'SPECIAL':
       return item.specialPrice
-    case 'DINAR':
-      return item.dinarPrice
-    case 'DOLLAR':
-      if (currency === 'IQD') {
-        return new Decimal(item.dollarPrice.toString()).mul(exchangeRate)
-      }
-      return item.dollarPrice
     default:
       return item.retailPrice
   }

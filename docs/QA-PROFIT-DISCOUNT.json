@@ -1,0 +1,32 @@
+{
+  "at": "2026-11-08T12:02:53.160Z",
+  "passed": 5,
+  "total": 5,
+  "results": [
+    {
+      "name": "invoice total is 180",
+      "ok": true,
+      "detail": "total=180"
+    },
+    {
+      "name": "sales.totalEGP == invoice total",
+      "ok": true,
+      "detail": "sales=180"
+    },
+    {
+      "name": "profit.revenue == sales.totalEGP (discount applied)",
+      "ok": true,
+      "detail": "profit=180 sales=180"
+    },
+    {
+      "name": "profit.cogs == 80",
+      "ok": true,
+      "detail": "cogs=80"
+    },
+    {
+      "name": "profit.gross == 100",
+      "ok": true,
+      "detail": "gross=100"
+    }
+  ]
+}

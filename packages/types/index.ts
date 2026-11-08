@@ -3,12 +3,12 @@ export type UserRole = 'ADMIN' | 'MANAGER' | 'CASHIER' | 'VIEWER' | 'ACCOUNTANT'
 export type Language = 'ar' | 'en'
 
 // Item types
-export type PriceType = 'RETAIL' | 'WHOLESALE' | 'SPECIAL' | 'DOLLAR' | 'DINAR'
+export type PriceType = 'RETAIL' | 'WHOLESALE' | 'SPECIAL'
 export type ItemUnit = 'piece' | 'kg' | 'gram' | 'liter' | 'box' | 'carton' | 'pack' | 'dozen' | 'meter'
 
 // Invoice types
 export type PaymentType = 'CASH' | 'CREDIT'
-export type Currency = 'USD' | 'IQD'
+export type Currency = 'EGP'
 export type InvoiceStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED'
 
 // Customer types

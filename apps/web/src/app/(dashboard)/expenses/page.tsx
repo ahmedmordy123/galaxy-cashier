@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { expensesService } from '@/services/expenses.service'
+import { formatMoney } from '@/lib/currency'
+import { formatDate } from '@/lib/dates'
 
 interface ExpenseCategory {
   id: string
@@ -25,7 +27,7 @@ interface SummaryRow {
   categoryId: string
   categoryNameAr: string
   categoryNameEn: string
-  totalIQD: number
+  totalEGP: number
   count: number
 }
 
@@ -108,16 +110,8 @@ export default function ExpensesPage() {
     }
   }
 
-  const grandTotal = summary.reduce((sum, row) => sum + row.totalIQD, 0)
+  const grandTotal = summary.reduce((sum, row) => sum + row.totalEGP, 0)
   const totalPages = Math.ceil(total / limit)
-
-  function formatAmount(amount: string | number, currency: string): string {
-    return `${Number(amount).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} ${currency}`
-  }
-
-  function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString('ar-IQ')
-  }
 
   return (
     <div dir="rtl">
@@ -152,7 +146,7 @@ export default function ExpensesPage() {
             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
               <tr>
                 <th className="px-4 py-2 text-right font-medium">الفئة</th>
-                <th className="px-4 py-2 text-right font-medium">إجمالي IQD</th>
+                <th className="px-4 py-2 text-right font-medium">إجمالي (ج.م)</th>
                 <th className="px-4 py-2 text-right font-medium">العدد</th>
               </tr>
             </thead>
@@ -161,7 +155,7 @@ export default function ExpensesPage() {
                 <tr key={row.categoryId} className="hover:bg-gray-50 dark:hover:bg-gray-750">
                   <td className="px-4 py-2 text-gray-900 dark:text-white">{row.categoryNameAr}</td>
                   <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">
-                    {row.totalIQD.toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    {formatMoney(row.totalEGP)}
                   </td>
                   <td className="px-4 py-2 text-gray-500">{row.count}</td>
                 </tr>
@@ -169,7 +163,7 @@ export default function ExpensesPage() {
               <tr className="bg-gray-50 dark:bg-gray-700 font-bold">
                 <td className="px-4 py-2 text-gray-900 dark:text-white">الإجمالي</td>
                 <td className="px-4 py-2 text-gray-900 dark:text-white">
-                  {grandTotal.toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {formatMoney(grandTotal)}
                 </td>
                 <td className="px-4 py-2 text-gray-500">
                   {summary.reduce((s, r) => s + r.count, 0)}
@@ -237,31 +231,17 @@ export default function ExpensesPage() {
                 <th className="px-4 py-3 text-right font-medium">الفئة</th>
                 <th className="px-4 py-3 text-right font-medium">الوصف</th>
                 <th className="px-4 py-3 text-right font-medium">المبلغ</th>
-                <th className="px-4 py-3 text-right font-medium">العملة</th>
-                <th className="px-4 py-3 text-right font-medium">ما يعادل IQD</th>
                 <th className="px-4 py-3 text-right font-medium">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {expenses.map((exp) => {
-                const amountNum = Number(exp.amount)
-                const rate = Number(exp.exchangeRate ?? 1480)
-                const equivalentIQD = exp.currency === 'USD' ? amountNum * rate : amountNum
-                return (
+              {expenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDate(exp.date)}</td>
                     <td className="px-4 py-3 text-gray-900 dark:text-white">{exp.category?.name_ar ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{exp.description || '—'}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                      {formatAmount(exp.amount, '')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${exp.currency === 'USD' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        {exp.currency === 'USD' ? 'دولار' : 'دينار'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                      {equivalentIQD.toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      {formatMoney(exp.amount)}
                     </td>
                     <td className="px-4 py-3 flex gap-3">
                       <button
@@ -278,8 +258,7 @@ export default function ExpensesPage() {
                       </button>
                     </td>
                   </tr>
-                )
-              })}
+              ))}
             </tbody>
           </table>
         )}

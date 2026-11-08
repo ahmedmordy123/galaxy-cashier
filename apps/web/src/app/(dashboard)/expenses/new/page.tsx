@@ -3,16 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { expensesService } from '@/services/expenses.service'
-import api from '@/lib/api'
+import { localDateISO } from '@/lib/dates'
 
 interface ExpenseCategory {
   id: string
   name_ar: string
   name_en: string
-}
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
 }
 
 export default function NewExpensePage() {
@@ -23,23 +19,18 @@ export default function NewExpensePage() {
   const [form, setForm] = useState({
     categoryId: '',
     amount: '',
-    currency: 'IQD',
-    exchangeRate: '1480',
+    currency: 'EGP',
+    exchangeRate: '1',
     description: '',
     paidBy: '',
     notes: '',
-    date: todayISO(),
+    date: localDateISO(),
   })
 
   useEffect(() => {
     expensesService.getCategories()
       .then((res) => setCategories(res.data ?? []))
       .catch(() => setCategories([]))
-
-    api.get('/api/settings').then((r) => {
-      const rate = Number(r.data?.data?.exchange_rate)
-      if (rate > 0) setForm((f) => ({ ...f, exchangeRate: String(rate) }))
-    }).catch(() => {})
   }, [])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
@@ -57,8 +48,8 @@ export default function NewExpensePage() {
       await expensesService.create({
         categoryId: form.categoryId,
         amount: Number(form.amount),
-        currency: form.currency,
-        exchangeRate: Number(form.exchangeRate),
+        currency: 'EGP',
+        exchangeRate: 1,
         description: form.description || undefined,
         paidBy: form.paidBy || undefined,
         notes: form.notes || undefined,
@@ -66,16 +57,19 @@ export default function NewExpensePage() {
       })
       router.push('/expenses')
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } }
-      setError(axiosErr.response?.data?.error ?? 'فشل في حفظ المصروف')
+      const axiosErr = err as {
+        response?: { data?: { error?: string; details?: Record<string, string[]> } }
+      }
+      const msg = axiosErr.response?.data?.error ?? 'فشل في حفظ المصروف'
+      const details = axiosErr.response?.data?.details
+      const detailText = details
+        ? ' — ' + Object.entries(details).map(([k, v]) => `${k}: ${(v || []).join(', ')}`).join(' | ')
+        : ''
+      setError(msg + detailText)
     } finally {
       setLoading(false)
     }
   }
-
-  const equivalentIQD = form.currency === 'USD' && form.amount
-    ? (Number(form.amount) * Number(form.exchangeRate)).toLocaleString('ar-IQ', { maximumFractionDigits: 0 })
-    : null
 
   return (
     <div dir="rtl" className="max-w-lg">
@@ -131,40 +125,11 @@ export default function NewExpensePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العملة</label>
-            <select
-              name="currency"
-              value={form.currency}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="IQD">دينار عراقي (IQD)</option>
-              <option value="USD">دولار أمريكي (USD)</option>
-            </select>
+            <div className="w-full px-3 py-2 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm font-medium">
+              جنيه مصري (ج.م)
+            </div>
           </div>
         </div>
-
-        {/* Exchange rate (shown when USD) */}
-        {form.currency === 'USD' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              سعر الصرف (IQD لكل USD)
-            </label>
-            <input
-              name="exchangeRate"
-              type="number"
-              step="1"
-              min="1"
-              value={form.exchangeRate}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            />
-            {equivalentIQD && (
-              <p className="mt-1 text-xs text-gray-500">
-                ما يعادل: <span className="font-medium text-gray-700 dark:text-gray-300">{equivalentIQD} دينار</span>
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Date */}
         <div>

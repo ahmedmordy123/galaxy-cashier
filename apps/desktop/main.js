@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, Menu, shell, dialog, globalShortcut } = require('electron')
+const { app, BrowserWindow, Menu, shell, dialog, globalShortcut, ipcMain } = require('electron')
 const { spawn, execSync } = require('child_process')
 const path = require('path')
 const http = require('http')
@@ -11,21 +11,69 @@ const IS_DEV   = !app.isPackaged
 const API_PORT = 4001
 const WEB_PORT = 3001
 
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.galaxydigital.cashier')
+}
+
 // ─── ASCII-safe userData path ──────────────────────────────────────────────────
 // app.getPath('userData') would include the productName which contains Arabic.
 // Prisma's SQLite driver cannot handle non-ASCII characters in file paths on
 // Windows, so we force a plain ASCII path before anything else runs.
 if (!IS_DEV) {
-  app.setPath('userData', path.join(app.getPath('appData'), 'IMS-Pro'))
+  app.setPath('userData', path.join(app.getPath('appData'), 'CASR'))
 }
 
 let mainWindow  = null
 let splashWindow = null
 const children  = []
+/** Deep-link path inside the web app, e.g. /sales/new from --sales */
+let pendingRoute = '/'
+
+function parseLaunchRoute(argv) {
+  const args = argv.slice(1)
+  for (const a of args) {
+    if (a === '--sales' || a === '--new-sale' || a === '--new-invoice') return '/sales/new'
+    if (a.startsWith('--route=')) {
+      const p = a.slice('--route='.length).trim()
+      if (p.startsWith('/') && !p.startsWith('//')) return p.split('?')[0]
+    }
+  }
+  return '/'
+}
+
+function navigateMainWindow(routePath) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const pathPart = routePath && routePath.startsWith('/') ? routePath : '/'
+  const url = `http://localhost:${WEB_PORT}${pathPart === '/' ? '' : pathPart}`
+  log(`[ui] navigate → ${url}`)
+  mainWindow.loadURL(url).catch((e) => log(`[ui] navigate error: ${e.message}`))
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+// Single instance: second launch focuses existing window and navigates only.
+// Must exit BEFORE whenReady — app.quit() alone can still race into startup/spawn.
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.exit(0)
+}
+
+app.on('second-instance', (_event, argv) => {
+  const route = parseLaunchRoute(argv)
+  pendingRoute = route
+  log(`[app] second-instance → navigate ${route} (no API respawn)`)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    navigateMainWindow(route)
+  } else {
+    // Primary still starting: remember route for createMainWindow
+    log(`[app] second-instance queued route=${route} (main window not ready)`)
+  }
+})
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 
-const LOG_DIR  = path.join(os.homedir(), 'IMS-Pro-Logs')
+const LOG_DIR  = path.join(os.homedir(), 'CASR-Logs')
 const LOG_FILE = path.join(LOG_DIR, 'app.log')
 const LOG_OLD  = path.join(LOG_DIR, 'app.log.old')
 
@@ -89,7 +137,7 @@ function validateSqliteFile(filePath) {
 }
 
 initLogger()
-log(`[app] ── IMS-Pro starting ──────────────────────────────────`)
+log(`[app] ── CASR starting ──────────────────────────────────`)
 
 // ─── Port helpers ──────────────────────────────────────────────────────────────
 
@@ -204,17 +252,53 @@ function killAll() {
 }
 
 // ─── Database initialisation (production) ─────────────────────────────────────
+// Live DB lives under Documents\CASR\data (survives reinstall / AppData wipe).
+// Backups are written by the API to Documents\CASR-Backups (separate folder).
 
 function initDatabase(res) {
-  const userDataPath = app.getPath('userData')
-  const dbFile       = path.join(userDataPath, 'cashier.db')
+  // Canonical live DB — same path for Setup and Portable (never under asar / install dir).
+  const dataDir = path.join(os.homedir(), 'Documents', 'CASR', 'data')
+  const dbFile = path.join(dataDir, 'cashier.db')
+  const marker = path.join(dataDir, '.appdata-migrated')
+  const legacyAppDataDb = path.join(app.getPath('userData'), 'cashier.db')
+  const legacyImsDb = path.join(app.getPath('appData'), 'IMS-Pro', 'cashier.db')
 
-  log(`[db] userData path : ${userDataPath}`)
-  log(`[db] database path : ${dbFile}`)
+  log(`[db] live data dir  : ${dataDir}`)
+  log(`[db] database path  : ${dbFile}`)
+  log(`[db] backups folder : ${path.join(os.homedir(), 'Documents', 'CASR-Backups')}`)
+  log(`[db] canonical source: Documents\\CASR\\data (Setup + Portable share this)`)
 
-  // Always ensure the folder exists before any file operations.
-  fs.mkdirSync(userDataPath, { recursive: true })
-  log(`[db] userData folder : ${fs.existsSync(userDataPath) ? 'EXISTS' : 'CREATED'}`)
+  fs.mkdirSync(dataDir, { recursive: true })
+
+  // One-time AppData → Documents migration only (marker prevents stale re-copy).
+  if (!fs.existsSync(dbFile)) {
+    if (fs.existsSync(marker)) {
+      log(`[db] Documents DB missing but AppData migration already done once — will use seed (not AppData again)`)
+    } else {
+      const sources = [legacyAppDataDb, legacyImsDb].filter((p) => p && fs.existsSync(p))
+      for (const src of sources) {
+        try {
+          fs.copyFileSync(src, dbFile)
+          fs.writeFileSync(
+            marker,
+            JSON.stringify({
+              at: new Date().toISOString(),
+              source: src,
+              dest: dbFile,
+              note: 'One-time AppData → Documents migration. Will not repeat.',
+            }, null, 2),
+            'utf8',
+          )
+          log(`[db] ONE-TIME migrate AppData → Documents: ${src} → ${dbFile}`)
+          break
+        } catch (e) {
+          log(`[db] Migration from AppData failed (${src}): ${e.message}`)
+        }
+      }
+    }
+  } else {
+    log(`[db] Using existing Documents DB (no AppData migrate)`)
+  }
 
   if (!fs.existsSync(dbFile)) {
     const seedDb = path.join(res, 'seed.db')
@@ -233,12 +317,14 @@ function initDatabase(res) {
 
   // Validate the DB is a real SQLite file (not zero-byte or corrupted)
   if (!validateSqliteFile(dbFile)) {
-    // Try to recover by re-copying seed.db
+    // Prefer restore hint: do not overwrite with empty seed if legacy exists
     log(`[db] Database appears corrupt — attempting recovery from seed.db`)
     const seedDb = path.join(res, 'seed.db')
     if (fs.existsSync(seedDb)) {
+      const broken = dbFile + '.corrupt-' + Date.now()
+      try { fs.renameSync(dbFile, broken) } catch {}
       fs.copyFileSync(seedDb, dbFile)
-      log(`[db] Recovery copy done`)
+      log(`[db] Recovery copy done (broken file kept as ${broken})`)
       if (!validateSqliteFile(dbFile)) {
         throw new Error(`Database recovery failed. seed.db itself may be corrupt: ${seedDb}`)
       }
@@ -297,21 +383,6 @@ async function startServers() {
 
   logStartInfo(res)
 
-  // Path diagnostic dialog — shows exact paths before any crash so mismatches are obvious.
-  dialog.showMessageBoxSync({
-    type: 'info',
-    title: 'IMS-Pro — Path Diagnostic',
-    message: 'Startup paths (close to continue)',
-    detail: [
-      `resourcesPath : ${res}`,
-      `node.exe      : ${nodeExe}  [${fs.existsSync(nodeExe) ? 'EXISTS' : 'MISSING'}]`,
-      `api/server.js : ${path.join(apiDir, 'server.js')}  [${fs.existsSync(path.join(apiDir, 'server.js')) ? 'EXISTS' : 'MISSING'}]`,
-      `web/server.js : ${path.join(webServerDir, 'server.js')}  [${fs.existsSync(path.join(webServerDir, 'server.js')) ? 'EXISTS' : 'MISSING'}]`,
-      `seed.db       : ${path.join(res, 'seed.db')}  [${fs.existsSync(path.join(res, 'seed.db')) ? 'EXISTS' : 'MISSING'}]`,
-      `userData      : ${app.getPath('userData')}`,
-    ].join('\n'),
-  })
-
   // Hard checks before any spawn attempt
   if (!fs.existsSync(nodeExe))
     throw new Error(`Bundled node.exe not found:\n${nodeExe}`)
@@ -335,17 +406,35 @@ async function startServers() {
   const dbUrl = initDatabase(res)
   log(`[app] DATABASE_URL: ${dbUrl}`)
 
+  // Automatic backups: API scheduler (see autoBackup.scheduler.ts)
+
+  // Resolve or generate JWT for this installation (not hardcoded)
+  const jwtFile = path.join(app.getPath('userData'), 'jwt.env')
+  fs.mkdirSync(app.getPath('userData'), { recursive: true })
+  let finalJwt = process.env.JWT_SECRET || ''
+  if (!finalJwt && fs.existsSync(jwtFile)) {
+    finalJwt = fs.readFileSync(jwtFile, 'utf8').trim()
+  }
+  if (!finalJwt) {
+    finalJwt = require('crypto').randomBytes(32).toString('hex')
+    try { fs.writeFileSync(jwtFile, finalJwt, 'utf8') } catch {}
+  }
+  const finalRefresh = process.env.JWT_REFRESH_SECRET || (finalJwt + '-refresh')
+
   if (!apiRunning) {
     log(`[app] Spawning API: ${nodeExe} server.js in ${apiDir}`)
     spawnServer(nodeExe, ['server.js'], apiDir, {
       DATABASE_URL:                dbUrl,
-      // Point Prisma directly at the bundled native query engine
       PRISMA_QUERY_ENGINE_LIBRARY: prismaEngineLib,
-      JWT_SECRET:                  'ims-pro-jwt-secret-change-before-production-min-32-chars',
-      JWT_REFRESH_SECRET:          'ims-pro-refresh-secret-change-before-production-min-32-chars',
+      JWT_SECRET:                  finalJwt,
+      JWT_REFRESH_SECRET:          finalRefresh,
       PORT:                        String(API_PORT),
       NODE_ENV:                    'production',
-      CORS_ORIGIN:                 `http://localhost:${WEB_PORT}`,
+      // UI may load via localhost or 127.0.0.1 — allow both for CORS
+      CORS_ORIGIN:                 `http://localhost:${WEB_PORT},http://127.0.0.1:${WEB_PORT}`,
+      // Local HTTP desktop — refresh cookie must not require HTTPS
+      COOKIE_SECURE:               'false',
+      DESKTOP_MODE:                '1',
     })
   } else {
     log(`[app] API already on :${API_PORT}`)
@@ -378,15 +467,16 @@ function createSplash() {
 
 function destroySplash() {
   if (splashWindow && !splashWindow.isDestroyed()) {
-    splashWindow.destroy()
+    try { splashWindow.setAlwaysOnTop(false) } catch {}
+    splashWindow.close()
     splashWindow = null
   }
 }
 
-async function createMainWindow() {
+async function createMainWindow(initialRoute) {
   mainWindow = new BrowserWindow({
     width: 1280, height: 820, minWidth: 960, minHeight: 600,
-    title: 'IMS-Pro', show: false, backgroundColor: '#f9fafb',
+    title: 'Galaxy Cashier — جالاكسي كاشير', show: false, backgroundColor: '#f9fafb',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false, webSecurity: true,
@@ -395,19 +485,47 @@ async function createMainWindow() {
 
   Menu.setApplicationMenu(null)
 
-  // Ctrl+Shift+I toggles DevTools in dev and production
-  globalShortcut.register('CommandOrControl+Shift+I', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.toggleDevTools()
-  })
-
-  await mainWindow.loadURL(`http://127.0.0.1:${WEB_PORT}`)
-
-  mainWindow.once('ready-to-show', () => {
+  let revealed = false
+  const revealMain = () => {
+    if (revealed || !mainWindow || mainWindow.isDestroyed()) return
+    revealed = true
     destroySplash()
-    mainWindow.show()
+    if (!mainWindow.isVisible()) mainWindow.show()
     mainWindow.focus()
     if (IS_DEV) mainWindow.webContents.openDevTools({ mode: 'detach' })
+  }
+
+  mainWindow.once('ready-to-show', revealMain)
+  mainWindow.webContents.once('did-finish-load', () => {
+    // ready-to-show can fire before we attach listeners if loadURL resolves quickly
+    setImmediate(revealMain)
   })
+
+  // DevTools only in development
+  if (IS_DEV) {
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.toggleDevTools()
+    })
+  }
+
+  // Use localhost (not 127.0.0.1) so Origin matches CORS + same-site cookies with API on localhost:4001
+  const route = initialRoute || pendingRoute || '/'
+  const loadUrl = route === '/'
+    ? `http://localhost:${WEB_PORT}`
+    : `http://localhost:${WEB_PORT}${route}`
+  log(`[ui] loadURL ${loadUrl}`)
+  try {
+    await mainWindow.loadURL(loadUrl)
+  } catch (e) {
+    log(`[ui] loadURL error: ${e.message}`)
+  }
+  if (!mainWindow.webContents.isLoading()) revealMain()
+
+  const splashFallback = setTimeout(() => {
+    log('[ui] splash fallback — forcing main window visible')
+    revealMain()
+  }, 15_000)
+  mainWindow.once('show', () => clearTimeout(splashFallback))
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     const isLocal =
@@ -424,44 +542,145 @@ async function createMainWindow() {
   })
 }
 
-// ─── App lifecycle ─────────────────────────────────────────────────────────────
+// ─── App lifecycle (primary instance only) ─────────────────────────────────────
 
-app.whenReady().then(async () => {
-  createSplash()
+if (gotLock) {
+  app.whenReady().then(async () => {
+    pendingRoute = parseLaunchRoute(process.argv)
+    log(`[app] launch route: ${pendingRoute}`)
+    createSplash()
 
+    try {
+      await startServers()
+
+      // Wait for port TCP handshake first (fast)
+      await Promise.all([
+        waitForPort(API_PORT, 60_000),
+        waitForPort(WEB_PORT, 120_000),
+      ])
+
+      // Then confirm the API is actually serving requests (5 retries × 2s)
+      await waitForApiHealth(5, 2000)
+
+      await createMainWindow(pendingRoute)
+    } catch (err) {
+      log(`[app] FATAL: ${err.message}`)
+      if (err.stack) log(err.stack)
+      destroySplash()
+      dialog.showErrorBox(
+        'Galaxy Cashier — خطأ في التشغيل',
+        `${err.message}\n\nملف السجل (للدعم الفني):\n${LOG_FILE}`,
+      )
+      app.quit()
+    }
+  })
+
+  app.on('activate', async () => {
+    if (BrowserWindow.getAllWindows().length === 0) await createMainWindow()
+  })
+}
+
+ipcMain.handle('select-backup-folder', async () => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow
+  const result = await dialog.showOpenDialog(win || undefined, {
+    title: 'اختر مجلد النسخ الاحتياطي',
+    properties: ['openDirectory', 'createDirectory'],
+  })
+  if (result.canceled || !result.filePaths?.[0]) return null
+  return result.filePaths[0]
+})
+
+function readExitBackupConfig() {
+  const cfgPath = path.join(os.homedir(), 'Documents', 'CASR', 'data', 'backup-config.json')
+  const fallbackDir = path.join(os.homedir(), 'Documents', 'CASR-Backups')
   try {
-    await startServers()
+    const raw = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
+    return {
+      directory: (raw.directory && String(raw.directory).trim()) || fallbackDir,
+      secondaryDirectory:
+        raw.secondaryDirectory && String(raw.secondaryDirectory).trim()
+          ? String(raw.secondaryDirectory).trim()
+          : null,
+      onExit: raw.onExit !== false,
+    }
+  } catch {
+    return { directory: fallbackDir, secondaryDirectory: null, onExit: true }
+  }
+}
 
-    // Wait for port TCP handshake first (fast)
-    await Promise.all([
-      waitForPort(API_PORT, 60_000),
-      waitForPort(WEB_PORT, 120_000),
-    ])
+/** Sync copy with a hard wall-clock budget so a missing/slow USB never hangs quit. */
+function copyWithBudget(src, dest, budgetMs = 2500) {
+  const start = Date.now()
+  fs.copyFileSync(src, dest)
+  if (Date.now() - start > budgetMs) {
+    throw new Error(`exit backup exceeded ${budgetMs}ms`)
+  }
+}
 
-    // Then confirm the API is actually serving requests (5 retries × 2s)
-    await waitForApiHealth(5, 2000)
+function tryCopyExitBackup(dbFile, directory, fileName) {
+  if (!directory) return null
+  try {
+    const root = path.parse(directory).root
+    if (root && !fs.existsSync(root)) return null
+    fs.mkdirSync(directory, { recursive: true })
+    const dest = path.join(directory, fileName)
+    copyWithBudget(dbFile, dest, 2500)
+    return dest
+  } catch (e) {
+    log(`[backup] Exit copy skipped/failed (${directory}): ${e.message}`)
+    return null
+  }
+}
 
-    await createMainWindow()
+function performExitBackup() {
+  const cfg = readExitBackupConfig()
+  if (!cfg.onExit) {
+    log('[backup] Exit backup skipped (disabled in settings)')
+    return
+  }
+  const dbFile = path.join(os.homedir(), 'Documents', 'CASR', 'data', 'cashier.db')
+  if (!fs.existsSync(dbFile)) {
+    log('[backup] Exit backup skipped — no live DB')
+    return
+  }
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+  const fileName = `cashier-exit-${stamp}.db`
+  const primary = tryCopyExitBackup(dbFile, cfg.directory, fileName)
+  if (primary) log(`[backup] Exit backup saved: ${primary}`)
+  const secondary = tryCopyExitBackup(dbFile, cfg.secondaryDirectory, fileName)
+  if (secondary) log(`[backup] Exit secondary backup saved: ${secondary}`)
+}
+
+let isQuitting = false
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', (e) => {
+  if (isQuitting) return
+  // Never block quit on backup: run best-effort copy then always proceed.
+  e.preventDefault()
+  isQuitting = true
+  const hardDeadline = setTimeout(() => {
+    log('[backup] Exit backup deadline — forcing quit')
+    try {
+      killAll()
+    } finally {
+      app.exit(0)
+    }
+  }, 4000)
+  try {
+    performExitBackup()
   } catch (err) {
-    log(`[app] FATAL: ${err.message}`)
-    if (err.stack) log(err.stack)
-    destroySplash()
-    dialog.showErrorBox(
-      'IMS-Pro — خطأ في التشغيل',
-      `${err.message}\n\nملف السجل (للدعم الفني):\n${LOG_FILE}`,
-    )
+    log(`[backup] Exit backup error (ignored): ${err && err.message}`)
+  } finally {
+    clearTimeout(hardDeadline)
+    killAll()
     app.quit()
   }
 })
 
-app.on('activate', async () => {
-  if (BrowserWindow.getAllWindows().length === 0) await createMainWindow()
-})
-
-app.on('window-all-closed', () => {
+app.on('will-quit', () => {
   killAll()
-  if (process.platform !== 'darwin') app.quit()
 })
-
-app.on('before-quit', killAll)
-app.on('will-quit',   killAll)

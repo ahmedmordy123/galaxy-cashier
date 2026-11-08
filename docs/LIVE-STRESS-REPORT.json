@@ -1,0 +1,711 @@
+{
+  "at": "2026-11-05T18:42:12.292Z",
+  "base": "http://127.0.0.1:4001",
+  "tag": "TEST-LIVE-MW3W77V5",
+  "pass": 61,
+  "fail": 0,
+  "results": [
+    {
+      "group": "infra",
+      "name": "api/health",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 42
+    },
+    {
+      "group": "infra",
+      "name": "web/",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 38
+    },
+    {
+      "group": "auth",
+      "name": "login",
+      "ok": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXJ1bmQwc2YwMDAwdDBxd2J6ZWxsNjhrIiwicm9sZSI6IkFETUlOIiwidXNlcm5hbWUiOiJhZG1pbiIsIm5hbWUiOiLZhdiv2YrYsSDYp9mE2YbYuNin2YUiLCJsYW5ndWFnZSI6ImFyIiwiaWF0IjoxNzkzOTA0MTI4LCJleHAiOjE3OTM5MDUwMjh9.Lkg4q948MYw1259LN877A0VFGe-e-Mq_sNSymI7rWRc",
+      "detail": "role=ADMIN",
+      "ms": 264
+    },
+    {
+      "group": "auth",
+      "name": "me",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 3
+    },
+    {
+      "group": "auth",
+      "name": "login-reject-bad-password",
+      "ok": true,
+      "detail": "HTTP 401",
+      "ms": 262
+    },
+    {
+      "group": "feature",
+      "name": "items:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 3
+    },
+    {
+      "group": "feature",
+      "name": "items:categories",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "items:get-by-id",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 3
+    },
+    {
+      "group": "feature",
+      "name": "items:barcode",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "customers:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "customers:get",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "customers:statement",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "suppliers:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "sales:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "sales:parked",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "purchases:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "expenses:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "expense-cats:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "vouchers:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "stock:transfers",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "stock:inventory",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "stock:low-stock",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "stock:expiring",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "cash:today",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "feature",
+      "name": "cash:range",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "settings:all",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "settings:fx-history",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "settings:users",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "reports:today-summary",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 6
+    },
+    {
+      "group": "feature",
+      "name": "reports:sales",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 6
+    },
+    {
+      "group": "feature",
+      "name": "reports:purchases",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "reports:profit",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 3
+    },
+    {
+      "group": "feature",
+      "name": "reports:inventory",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "reports:product-movement",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "feature",
+      "name": "reports:customer-statement",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "feature",
+      "name": "quotes:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "backup:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "backup:auto-status",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 245
+    },
+    {
+      "group": "feature",
+      "name": "audit:list",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "eta:status",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "feature",
+      "name": "eta:documents",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 1
+    },
+    {
+      "group": "feature",
+      "name": "ops:warehouses",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 2
+    },
+    {
+      "group": "feature",
+      "name": "ops:stock-counts",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 3
+    },
+    {
+      "group": "feature",
+      "name": "ops:shifts",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "feature",
+      "name": "ops:shifts-current",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "feature",
+      "name": "ops:shifts-summary",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "feature",
+      "name": "ops:sales-analysis",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 3
+    },
+    {
+      "group": "feature",
+      "name": "ops:serials",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 3
+    },
+    {
+      "group": "feature",
+      "name": "ops:item-ledger",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 4
+    },
+    {
+      "group": "write",
+      "name": "shift-open",
+      "ok": true,
+      "detail": "HTTP 400",
+      "ms": 2
+    },
+    {
+      "group": "write",
+      "name": "create-item",
+      "ok": true,
+      "detail": "id=cmw3w78mi000nfvvpt45pk1hb",
+      "ms": 18
+    },
+    {
+      "group": "write",
+      "name": "create-customer",
+      "ok": true,
+      "detail": "id=cmw3w78n0000qfvvp9tr4dy0l",
+      "ms": 5
+    },
+    {
+      "group": "write",
+      "name": "create-sale",
+      "ok": true,
+      "detail": "id=cmw3w78nb000tfvvpi98ukf2q",
+      "ms": 12
+    },
+    {
+      "group": "write",
+      "name": "confirm-sale",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 19
+    },
+    {
+      "group": "write",
+      "name": "create-quote",
+      "ok": true,
+      "detail": "id=cmw3w78o30013fvvpkswoxft9",
+      "ms": 10
+    },
+    {
+      "group": "write",
+      "name": "create-expense",
+      "ok": true,
+      "detail": "HTTP 201",
+      "ms": 4
+    },
+    {
+      "group": "write",
+      "name": "delete-quote",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 8
+    },
+    {
+      "group": "write",
+      "name": "soft-delete-item",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 8
+    },
+    {
+      "group": "write",
+      "name": "soft-delete-customer",
+      "ok": true,
+      "detail": "HTTP 200",
+      "ms": 9
+    },
+    {
+      "group": "stress",
+      "name": "parallel-reads",
+      "ok": true,
+      "detail": "ok=80/80 fail=0 total=2054ms avg=250 p50=231 p95=1236 max=1522",
+      "ms": 2054
+    },
+    {
+      "group": "stress",
+      "name": "login-burst-5",
+      "ok": true,
+      "detail": "ok=5/5",
+      "ms": 1267
+    }
+  ],
+  "featureMap": [
+    {
+      "module": "items",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/items?page=1&limit=20"
+    },
+    {
+      "module": "items",
+      "endpoint": "categories",
+      "status": "PASS",
+      "note": "/api/items/categories"
+    },
+    {
+      "module": "items",
+      "endpoint": "get-by-id",
+      "status": "PASS",
+      "note": "/api/items/cmrvpk59t0009pqddc5no9l72"
+    },
+    {
+      "module": "items",
+      "endpoint": "barcode",
+      "status": "PASS",
+      "note": "/api/items/barcode/IMS-02114991"
+    },
+    {
+      "module": "customers",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/customers?page=1&limit=20"
+    },
+    {
+      "module": "customers",
+      "endpoint": "get",
+      "status": "PASS",
+      "note": "/api/customers/cmruz7whz0008v5ypzznrfo4n"
+    },
+    {
+      "module": "customers",
+      "endpoint": "statement",
+      "status": "PASS",
+      "note": "/api/customers/cmruz7whz0008v5ypzznrfo4n/statement?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "suppliers",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/suppliers?page=1&limit=20"
+    },
+    {
+      "module": "sales",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/sales?page=1&limit=20"
+    },
+    {
+      "module": "sales",
+      "endpoint": "parked",
+      "status": "PASS",
+      "note": "/api/sales/parked/list"
+    },
+    {
+      "module": "purchases",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/purchases?page=1&limit=20"
+    },
+    {
+      "module": "expenses",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/expenses?page=1&limit=20"
+    },
+    {
+      "module": "expense-cats",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/expense-categories"
+    },
+    {
+      "module": "vouchers",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/vouchers?page=1&limit=20"
+    },
+    {
+      "module": "stock",
+      "endpoint": "transfers",
+      "status": "PASS",
+      "note": "/api/stock/transfers?page=1&limit=20"
+    },
+    {
+      "module": "stock",
+      "endpoint": "inventory",
+      "status": "PASS",
+      "note": "/api/stock/inventory?page=1&limit=20"
+    },
+    {
+      "module": "stock",
+      "endpoint": "low-stock",
+      "status": "PASS",
+      "note": "/api/stock/low-stock"
+    },
+    {
+      "module": "stock",
+      "endpoint": "expiring",
+      "status": "PASS",
+      "note": "/api/stock/expiring"
+    },
+    {
+      "module": "cash",
+      "endpoint": "today",
+      "status": "PASS",
+      "note": "/api/cash-statement/today"
+    },
+    {
+      "module": "cash",
+      "endpoint": "range",
+      "status": "PASS",
+      "note": "/api/cash-statement/range?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "settings",
+      "endpoint": "all",
+      "status": "PASS",
+      "note": "/api/settings"
+    },
+    {
+      "module": "settings",
+      "endpoint": "fx-history",
+      "status": "PASS",
+      "note": "/api/settings/exchange-rate/history"
+    },
+    {
+      "module": "settings",
+      "endpoint": "users",
+      "status": "PASS",
+      "note": "/api/settings/users"
+    },
+    {
+      "module": "reports",
+      "endpoint": "today-summary",
+      "status": "PASS",
+      "note": "/api/reports/today-summary"
+    },
+    {
+      "module": "reports",
+      "endpoint": "sales",
+      "status": "PASS",
+      "note": "/api/reports/sales?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "reports",
+      "endpoint": "purchases",
+      "status": "PASS",
+      "note": "/api/reports/purchases?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "reports",
+      "endpoint": "profit",
+      "status": "PASS",
+      "note": "/api/reports/profit?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "reports",
+      "endpoint": "inventory",
+      "status": "PASS",
+      "note": "/api/reports/inventory"
+    },
+    {
+      "module": "reports",
+      "endpoint": "product-movement",
+      "status": "PASS",
+      "note": "/api/reports/product-movement?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "reports",
+      "endpoint": "customer-statement",
+      "status": "PASS",
+      "note": "/api/reports/customer-statement/cmruz7whz0008v5ypzznrfo4n?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "quotes",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/quotes?page=1&limit=20"
+    },
+    {
+      "module": "backup",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/backup"
+    },
+    {
+      "module": "backup",
+      "endpoint": "auto-status",
+      "status": "PASS",
+      "note": "/api/backup/auto-status"
+    },
+    {
+      "module": "audit",
+      "endpoint": "list",
+      "status": "PASS",
+      "note": "/api/audit?page=1&limit=20"
+    },
+    {
+      "module": "eta",
+      "endpoint": "status",
+      "status": "PASS",
+      "note": "/api/eta/status"
+    },
+    {
+      "module": "eta",
+      "endpoint": "documents",
+      "status": "PASS",
+      "note": "/api/eta/documents"
+    },
+    {
+      "module": "ops",
+      "endpoint": "warehouses",
+      "status": "PASS",
+      "note": "/api/ops/warehouses"
+    },
+    {
+      "module": "ops",
+      "endpoint": "stock-counts",
+      "status": "PASS",
+      "note": "/api/ops/stock-counts"
+    },
+    {
+      "module": "ops",
+      "endpoint": "shifts",
+      "status": "PASS",
+      "note": "/api/ops/shifts"
+    },
+    {
+      "module": "ops",
+      "endpoint": "shifts-current",
+      "status": "PASS",
+      "note": "/api/ops/shifts/current"
+    },
+    {
+      "module": "ops",
+      "endpoint": "shifts-summary",
+      "status": "PASS",
+      "note": "/api/ops/shifts/current/summary"
+    },
+    {
+      "module": "ops",
+      "endpoint": "sales-analysis",
+      "status": "PASS",
+      "note": "/api/ops/sales-analysis?from=2026-10-06&to=2026-11-05"
+    },
+    {
+      "module": "ops",
+      "endpoint": "serials",
+      "status": "PASS",
+      "note": "/api/ops/serials"
+    },
+    {
+      "module": "ops",
+      "endpoint": "item-ledger",
+      "status": "PASS",
+      "note": "/api/ops/item-ledger/cmrvpk59t0009pqddc5no9l72"
+    }
+  ],
+  "stress": {
+    "okCount": 80,
+    "failCount": 0,
+    "avg": 250,
+    "p50": 231,
+    "p95": 1236,
+    "max": 1522,
+    "stressMs": 2054
+  }
+}

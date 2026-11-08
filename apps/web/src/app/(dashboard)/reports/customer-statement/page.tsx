@@ -155,13 +155,13 @@ export default function CustomerStatementReportPage() {
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">إجمالي الفواتير</p>
               <p className="font-bold text-blue-600 dark:text-blue-400">
-                {Number(statement.summary.totalInvoiced).toLocaleString('ar-IQ')}
+                {Number(statement.summary.totalInvoiced).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">إجمالي المدفوع</p>
               <p className="font-bold text-green-600 dark:text-green-400">
-                {Number(statement.summary.totalPaid).toLocaleString('ar-IQ')}
+                {Number(statement.summary.totalPaid).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
               </p>
             </div>
             <div>
@@ -173,7 +173,7 @@ export default function CustomerStatementReportPage() {
                     : 'text-gray-700 dark:text-gray-300'
                 }`}
               >
-                {Number(statement.summary.currentBalance).toLocaleString('ar-IQ')}
+                {Number(statement.summary.currentBalance).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function CustomerStatementReportPage() {
                     {statement.transactions.map((tx, idx) => (
                       <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-750">
                         <td className="px-4 py-3 text-gray-500 text-xs">
-                          {new Date(tx.date).toLocaleDateString('ar-IQ')}
+                          {new Date(tx.date).toLocaleDateString('ar-EG')}
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -216,10 +216,10 @@ export default function CustomerStatementReportPage() {
                           {tx.reference}
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                          {Number(tx.amount).toLocaleString('ar-IQ')}
+                          {Number(tx.amount).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-3 text-gray-500">
-                          {tx.currency === 'USD' ? 'دولار' : 'دينار'}
+                          {'ج.م'}
                         </td>
                         <td
                           className={`px-4 py-3 font-bold ${
@@ -229,7 +229,7 @@ export default function CustomerStatementReportPage() {
                           }`}
                         >
                           {tx.balanceEffect >= 0 ? '+' : ''}
-                          {Number(tx.balanceEffect).toLocaleString('ar-IQ')}
+                          {Number(tx.balanceEffect).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
                     ))}

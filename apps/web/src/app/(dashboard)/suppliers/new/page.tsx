@@ -7,7 +7,7 @@ import { suppliersService } from '@/services/suppliers.service'
 export default function NewSupplierPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', address: '', currency: 'IQD', notes: '' })
+  const [form, setForm] = useState({ name: '', phone: '', address: '', currency: 'EGP', notes: '' })
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = e.target
@@ -45,10 +45,9 @@ export default function NewSupplierPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العملة</label>
-            <select name="currency" value={form.currency} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-              <option value="IQD">دينار عراقي</option>
-              <option value="USD">دولار أمريكي</option>
-            </select>
+            <div className="w-full px-3 py-2 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm font-medium">
+              جنيه مصري (ج.م)
+            </div>
           </div>
         </div>
         <div>

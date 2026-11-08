@@ -17,6 +17,7 @@ import {
   deleteExpense,
   getExpenseSummary,
 } from '../services/expense.service'
+import { sendRouteError } from '../utils/apiError'
 
 // ─── Category handlers ────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ export async function createCategory(req: Request, res: Response) {
     if (!result.success) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
+        error: 'بيانات غير صحيحة',
         details: result.error.flatten().fieldErrors,
       })
     }
@@ -52,7 +53,7 @@ export async function updateCategory(req: Request, res: Response) {
     if (!result.success) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
+        error: 'بيانات غير صحيحة',
         details: result.error.flatten().fieldErrors,
       })
     }
@@ -71,7 +72,7 @@ export async function deleteCategory(req: Request, res: Response) {
     if (err instanceof Error && err.message === 'CATEGORY_IN_USE') {
       return res.status(400).json({ success: false, error: 'لا يمكن حذف الفئة لوجود مصاريف مرتبطة بها' })
     }
-    res.status(500).json({ success: false, error: 'Failed to delete expense category' })
+    return sendRouteError(res, err, 'فشل حذف فئة المصروف')
   }
 }
 
@@ -110,14 +111,14 @@ export async function createExpenseHandler(req: Request, res: Response) {
     if (!result.success) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
+        error: 'بيانات غير صحيحة',
         details: result.error.flatten().fieldErrors,
       })
     }
     const expense = await createExpense(result.data, req.user!.id)
     res.status(201).json({ success: true, data: expense })
   } catch {
-    res.status(500).json({ success: false, error: 'Failed to create expense' })
+    res.status(500).json({ success: false, error: 'فشل في حفظ المصروف' })
   }
 }
 
@@ -127,14 +128,14 @@ export async function updateExpenseHandler(req: Request, res: Response) {
     if (!result.success) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
+        error: 'بيانات غير صحيحة',
         details: result.error.flatten().fieldErrors,
       })
     }
     const expense = await updateExpense(req.params.id, result.data)
     res.json({ success: true, data: expense })
   } catch {
-    res.status(500).json({ success: false, error: 'Failed to update expense' })
+    res.status(500).json({ success: false, error: 'فشل في تحديث المصروف' })
   }
 }
 

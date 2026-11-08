@@ -80,3 +80,35 @@ button {
 [dir="rtl"] .flex-row {
   flex-direction: row-reverse;
 }
+
+/* Invoice / voucher print: hide app chrome if user prints from inside the dashboard */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .dashboard-chrome {
+    display: none !important;
+  }
+
+  .dashboard-main {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: auto !important;
+  }
+
+  .dashboard-main > div {
+    padding: 0 !important;
+  }
+
+  .print-document-root {
+    padding: 0 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

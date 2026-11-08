@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { currencySchema } from './currency.schema'
 
 export const createCustomerSchema = z.object({
   name: z.string().min(1),
@@ -6,7 +7,7 @@ export const createCustomerSchema = z.object({
   address: z.string().optional().nullable(),
   type: z.enum(['RETAIL', 'WHOLESALE']).default('RETAIL'),
   creditLimit: z.number().min(0).default(0),
-  currency: z.enum(['USD', 'IQD']).default('IQD'),
+  currency: currencySchema,
   notes: z.string().optional().nullable(),
 })
 

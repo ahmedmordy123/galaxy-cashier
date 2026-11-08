@@ -35,7 +35,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('ar-IQ', {
+  return new Date(dateStr).toLocaleDateString('ar-EG', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

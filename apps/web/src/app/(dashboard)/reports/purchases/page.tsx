@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { reportsService } from '@/services/reports.service'
 
-type Currency = 'USD' | 'IQD'
+type Currency = 'USD' | 'EGP'
 type InvoiceStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
 
 interface PurchaseInvoice {
@@ -18,7 +18,7 @@ interface PurchaseInvoice {
 
 interface Summary {
   totalInvoices: number
-  totalIQD: number
+  totalEGP: number
   totalUSD: number
 }
 
@@ -49,9 +49,9 @@ function exportCsv(invoices: PurchaseInvoice[]) {
     inv.invoiceNumber,
     inv.supplier?.name ?? '',
     String(Number(inv.total)),
-    inv.currency,
+    'ج.م',
     STATUS_LABELS[inv.status] ?? inv.status,
-    new Date(inv.createdAt).toLocaleDateString('ar-IQ'),
+    new Date(inv.createdAt).toLocaleDateString('ar-EG'),
   ])
   const csvContent = [headers, ...rows]
     .map((row) => row.map((cell) => `"${cell}"`).join(','))
@@ -141,21 +141,15 @@ export default function PurchasesReportPage() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-blue-500">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">إجمالي الفواتير</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.totalInvoices}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-green-500">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">إجمالي بالدينار</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">الإجمالي (ج.م)</p>
             <p className="text-lg font-bold text-green-600 dark:text-green-400">
-              {summary.totalIQD.toLocaleString('ar-IQ')}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-r-4 border-teal-500">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">إجمالي بالدولار</p>
-            <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
-              ${summary.totalUSD.toLocaleString()}
+              {summary.totalEGP.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ج.م
             </p>
           </div>
         </div>
@@ -189,10 +183,10 @@ export default function PurchasesReportPage() {
                         {inv.supplier?.name ?? '—'}
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                        {Number(inv.total).toLocaleString('ar-IQ')}
+                        {Number(inv.total).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-gray-500">
-                        {inv.currency === 'USD' ? 'دولار' : 'دينار'}
+                        {'ج.م'}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -202,7 +196,7 @@ export default function PurchasesReportPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {new Date(inv.createdAt).toLocaleDateString('ar-IQ')}
+                        {new Date(inv.createdAt).toLocaleDateString('ar-EG')}
                       </td>
                     </tr>
                   ))}

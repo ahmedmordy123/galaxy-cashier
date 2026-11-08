@@ -1,19 +1,32 @@
 import { z } from 'zod'
+import { currencySchema } from './currency.schema'
+import {
+  flexibleDateTime,
+  idString,
+  nonNegativeNumber,
+  percentNumber,
+  positiveNumber,
+} from './zod-helpers'
 
 export const purchaseLineSchema = z.object({
-  itemId: z.string().cuid(),
-  quantity: z.number().positive(),
-  unitCost: z.number().nonnegative(),
-  discount: z.number().min(0).max(100).default(0),
-  expiryDate: z.string().optional().nullable(),
+  itemId: idString,
+  quantity: positiveNumber,
+  unitCost: nonNegativeNumber,
+  discount: percentNumber.default(0),
+  expiryDate: flexibleDateTime,
 })
 
 export const createPurchaseInvoiceSchema = z.object({
-  supplierId: z.string().cuid(),
-  currency: z.enum(['USD', 'IQD']),
-  exchangeRate: z.number().positive(),
-  discount: z.number().min(0).default(0),
+  supplierId: idString,
+  paymentType: z.enum(['CASH', 'CREDIT']).default('CREDIT'),
+  currency: currencySchema,
+  exchangeRate: positiveNumber.default(1),
+  discount: nonNegativeNumber.default(0),
   notes: z.string().optional().nullable(),
+  supplierRef: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? null : String(v).trim()),
+    z.string().min(1).max(80).nullable().optional(),
+  ),
   items: z.array(purchaseLineSchema).min(1),
 })
 

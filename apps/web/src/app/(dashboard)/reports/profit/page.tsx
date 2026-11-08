@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { reportsService } from '@/services/reports.service'
+import { formatNumber } from '@/lib/currency'
 
 interface ProfitItem {
   itemId: string
@@ -31,7 +32,7 @@ function getDefaultTo(): string {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('ar-IQ', { maximumFractionDigits: 0 })
+  return formatNumber(n)
 }
 
 export default function ProfitReportPage() {
@@ -161,7 +162,7 @@ export default function ProfitReportPage() {
                         <div className="text-xs text-gray-500">{item.nameEn}</div>
                       </td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-center">
-                        {Number(item.quantitySold).toLocaleString('ar-IQ')}
+                        {Number(item.quantitySold).toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-medium">
                         {fmt(item.revenue)}

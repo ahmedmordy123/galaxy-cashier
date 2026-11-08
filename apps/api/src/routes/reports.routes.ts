@@ -13,6 +13,10 @@ router.get('/sales',                      requireRole(...reportRoles), ctrl.sale
 router.get('/purchases',                  requireRole(...reportRoles), ctrl.purchasesReport)
 router.get('/profit',                     requireRole('ADMIN', 'MANAGER', 'ACCOUNTANT'), ctrl.profitReport)
 router.get('/inventory',                  requireRole(...reportRoles), ctrl.inventoryReport)
+router.get('/product-movement',           requireRole(...reportRoles), ctrl.productMovementReport)
+router.get('/expenses',                   requireRole(...reportRoles), ctrl.expenseAnalysisReport)
+router.get('/inventory-as-of',            requireRole(...reportRoles), ctrl.inventoryAsOfReport)
+router.get('/period-compare',             requireRole(...reportRoles), ctrl.periodCompareReport)
 router.get('/customer-statement/:id',     requireRole(...reportRoles), ctrl.customerStatement)
 router.get('/supplier-statement/:id',     requireRole(...reportRoles), ctrl.supplierStatement)
 

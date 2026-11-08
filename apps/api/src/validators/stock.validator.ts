@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import { idString, positiveNumber } from './zod-helpers'
 
 export const createStockTransferSchema = z.object({
-  itemId: z.string().cuid(),
+  itemId: idString,
   type: z.enum(['IN', 'OUT']),
   reason: z.enum(['DAMAGE', 'ADJUSTMENT', 'TRANSFER', 'RETURN', 'EXPIRED']),
-  quantity: z.number().positive(),
+  quantity: positiveNumber,
   notes: z.string().optional(),
 })
 

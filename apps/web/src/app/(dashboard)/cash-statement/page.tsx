@@ -9,15 +9,15 @@ interface StatementData {
   id?: string
   isClosed: boolean
   date: string
-  openingBalanceIQD: number
+  openingBalanceEGP: number
   openingBalanceUSD: number
-  cashSalesIQD: number
+  cashSalesEGP: number
   cashSalesUSD: number
   creditSales: number
   receipts: number
   disbursements: number
   expenses: number
-  closingBalanceIQD: number
+  closingBalanceEGP: number
   closingBalanceUSD: number
   notes?: string | null
 }
@@ -25,25 +25,21 @@ interface StatementData {
 interface HistoryRow {
   id: string
   date: string
-  openingBalanceIQD: string | number
+  openingBalanceEGP: string | number
   openingBalanceUSD: string | number
-  closingBalanceIQD: string | number
+  closingBalanceEGP: string | number
   closingBalanceUSD: string | number
   isClosed: boolean
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatIQD(val: number | string): string {
-  return Number(val).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })
-}
-
-function formatUSD(val: number | string): string {
-  return Number(val).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })
+function formatEGP(val: number | string): string {
+  return Number(val).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function formatDateAr(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('ar-IQ')
+  return new Date(dateStr).toLocaleDateString('ar-EG')
 }
 
 function todayStr(): string {
@@ -54,12 +50,11 @@ function todayStr(): string {
 
 interface StatCardProps {
   label: string
-  iqd?: number
-  usd?: number
+  amount?: number
   highlight?: boolean
 }
 
-function StatCard({ label, iqd, usd, highlight }: StatCardProps) {
+function StatCard({ label, amount, highlight }: StatCardProps) {
   return (
     <div
       className={`rounded-xl p-4 shadow-sm border ${
@@ -69,14 +64,9 @@ function StatCard({ label, iqd, usd, highlight }: StatCardProps) {
       }`}
     >
       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{label}</p>
-      {iqd !== undefined && (
-        <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">
-          {formatIQD(iqd)} <span className="text-xs font-normal">د.ع</span>
-        </p>
-      )}
-      {usd !== undefined && (
-        <p className="text-sm font-semibold text-green-700 dark:text-green-400 mt-0.5">
-          {formatUSD(usd)} <span className="text-xs font-normal">$</span>
+      {amount !== undefined && (
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+          {formatEGP(amount)} <span className="text-xs font-normal">ج.م</span>
         </p>
       )}
     </div>
@@ -217,38 +207,13 @@ export default function CashStatementPage() {
           <>
             {/* Stat cards grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-              <StatCard
-                label="رصيد الافتتاح"
-                iqd={today.openingBalanceIQD}
-                usd={today.openingBalanceUSD}
-              />
-              <StatCard
-                label="المبيعات النقدية"
-                iqd={today.cashSalesIQD}
-                usd={today.cashSalesUSD}
-              />
-              <StatCard
-                label="المبيعات الآجلة"
-                iqd={today.creditSales}
-              />
-              <StatCard
-                label="المقبوضات"
-                iqd={today.receipts}
-              />
-              <StatCard
-                label="المصروفات"
-                iqd={today.expenses}
-              />
-              <StatCard
-                label="المدفوعات"
-                iqd={today.disbursements}
-              />
-              <StatCard
-                label="رصيد الإغلاق"
-                iqd={today.closingBalanceIQD}
-                usd={today.closingBalanceUSD}
-                highlight
-              />
+              <StatCard label="رصيد الافتتاح" amount={today.openingBalanceEGP} />
+              <StatCard label="المبيعات النقدية" amount={today.cashSalesEGP} />
+              <StatCard label="المبيعات الآجلة" amount={today.creditSales} />
+              <StatCard label="المقبوضات" amount={today.receipts} />
+              <StatCard label="المصروفات" amount={today.expenses} />
+              <StatCard label="المدفوعات" amount={today.disbursements} />
+              <StatCard label="رصيد الإغلاق" amount={today.closingBalanceEGP} highlight />
             </div>
 
             {/* Notes & close */}
@@ -336,10 +301,8 @@ export default function CashStatementPage() {
               <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
                 <tr>
                   <th className="px-4 py-3 text-right font-medium">التاريخ</th>
-                  <th className="px-4 py-3 text-right font-medium">افتتاح IQD</th>
-                  <th className="px-4 py-3 text-right font-medium">إغلاق IQD</th>
-                  <th className="px-4 py-3 text-right font-medium">افتتاح USD</th>
-                  <th className="px-4 py-3 text-right font-medium">إغلاق USD</th>
+                  <th className="px-4 py-3 text-right font-medium">افتتاح (ج.م)</th>
+                  <th className="px-4 py-3 text-right font-medium">إغلاق (ج.م)</th>
                   <th className="px-4 py-3 text-right font-medium">الحالة</th>
                 </tr>
               </thead>
@@ -357,16 +320,10 @@ export default function CashStatementPage() {
                           {formatDateAr(row.date)}
                         </td>
                         <td className="px-4 py-3 text-gray-900 dark:text-white">
-                          {formatIQD(row.openingBalanceIQD)}
+                          {formatEGP(row.openingBalanceEGP)} ج.م
                         </td>
                         <td className="px-4 py-3 font-semibold text-blue-700 dark:text-blue-400">
-                          {formatIQD(row.closingBalanceIQD)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-900 dark:text-white">
-                          {formatUSD(row.openingBalanceUSD)}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-green-700 dark:text-green-400">
-                          {formatUSD(row.closingBalanceUSD)}
+                          {formatEGP(row.closingBalanceEGP)} ج.م
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -384,57 +341,51 @@ export default function CashStatementPage() {
                       {/* Expanded detail row */}
                       {isExpanded && (
                         <tr>
-                          <td colSpan={6} className="bg-blue-50 dark:bg-blue-900/10 px-6 py-4">
+                          <td colSpan={4} className="bg-blue-50 dark:bg-blue-900/10 px-6 py-4">
                             {expandedLoading ? (
                               <p className="text-sm text-gray-500">جار التحميل...</p>
                             ) : expandedData ? (
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 <div>
-                                  <p className="text-xs text-gray-500 mb-0.5">رصيد الافتتاح IQD</p>
+                                  <p className="text-xs text-gray-500 mb-0.5">رصيد الافتتاح</p>
                                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {formatIQD(expandedData.openingBalanceIQD)}
+                                    {formatEGP(expandedData.openingBalanceEGP)} ج.م
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-gray-500 mb-0.5">المبيعات النقدية IQD</p>
+                                  <p className="text-xs text-gray-500 mb-0.5">المبيعات النقدية</p>
                                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {formatIQD(expandedData.cashSalesIQD)}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-gray-500 mb-0.5">المبيعات النقدية USD</p>
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {formatUSD(expandedData.cashSalesUSD)}
+                                    {formatEGP(expandedData.cashSalesEGP)} ج.م
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-gray-500 mb-0.5">المبيعات الآجلة</p>
                                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {formatIQD(expandedData.creditSales)}
+                                    {formatEGP(expandedData.creditSales)} ج.م
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-gray-500 mb-0.5">المقبوضات</p>
                                   <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                                    {formatIQD(expandedData.receipts)}
+                                    {formatEGP(expandedData.receipts)} ج.م
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-gray-500 mb-0.5">المصروفات</p>
                                   <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                                    {formatIQD(expandedData.expenses)}
+                                    {formatEGP(expandedData.expenses)} ج.م
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-gray-500 mb-0.5">المدفوعات</p>
                                   <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                                    {formatIQD(expandedData.disbursements)}
+                                    {formatEGP(expandedData.disbursements)} ج.م
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-gray-500 mb-0.5">رصيد الإغلاق IQD</p>
+                                  <p className="text-xs text-gray-500 mb-0.5">رصيد الإغلاق</p>
                                   <p className="text-sm font-bold text-blue-700 dark:text-blue-400">
-                                    {formatIQD(expandedData.closingBalanceIQD)}
+                                    {formatEGP(expandedData.closingBalanceEGP)} ج.م
                                   </p>
                                 </div>
                                 {expandedData.notes && (

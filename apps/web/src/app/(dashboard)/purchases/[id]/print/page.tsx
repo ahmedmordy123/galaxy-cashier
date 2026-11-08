@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { purchasesService } from '@/services/purchases.service'
+import api from '@/lib/api'
+import { formatMoney, formatNumber } from '@/lib/currency'
+import { formatDate, formatDateTime } from '@/lib/dates'
+import { InvoiceMarketingFooter } from '@/components/print/InvoiceMarketingFooter'
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'مسودة',
@@ -24,7 +28,7 @@ interface PurchaseInvoice {
   id: string
   invoiceNumber: string
   supplier: { id: string; name: string; currency: string } | null
-  currency: 'IQD' | 'USD'
+  currency: 'EGP' | 'USD'
   exchangeRate: number
   subtotal: number
   discount: number
@@ -42,12 +46,19 @@ export default function PrintPurchasePage() {
   const params = useParams()
   const id = params.id as string
   const [invoice, setInvoice] = useState<PurchaseInvoice | null>(null)
+  const [businessName, setBusinessName] = useState('')
+  const [printSettings, setPrintSettings] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
 
   useEffect(() => {
-    purchasesService.getById(id)
-      .then((res) => {
-        setInvoice(res.data)
+    Promise.all([
+      purchasesService.getById(id),
+      api.get('/api/settings'),
+    ])
+      .then(([invRes, setRes]) => {
+        setInvoice(invRes.data)
+        setBusinessName(setRes.data?.data?.business_name_ar ?? '')
+        setPrintSettings(setRes.data?.data ?? {})
         setTimeout(() => window.print(), 500)
       })
       .catch(() => setError('فشل في تحميل الفاتورة'))
@@ -56,13 +67,11 @@ export default function PrintPurchasePage() {
   if (error) return <div dir="rtl" className="p-8 text-red-600">{error}</div>
   if (!invoice) return <div dir="rtl" className="p-8 text-center text-gray-500">جار التحميل...</div>
 
-  const currencyLabel = invoice.currency === 'USD' ? 'دولار' : 'دينار'
-
   return (
     <>
       <style>{`
         @media print {
-          body { margin: 0; }
+          html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .no-print { display: none !important; }
           @page { margin: 10mm; size: A4; }
         }
@@ -87,7 +96,7 @@ export default function PrintPurchasePage() {
       <div dir="rtl" className="max-w-2xl mx-auto p-8 bg-white text-gray-900">
         {/* Header */}
         <div className="text-center mb-6 border-b-2 border-gray-800 pb-4">
-          <h1 className="text-2xl font-bold">IMS-Pro</h1>
+          <h1 className="text-2xl font-bold">{businessName || '—'}</h1>
           <p className="text-sm text-gray-500 mt-1">فاتورة شراء</p>
         </div>
 
@@ -100,7 +109,7 @@ export default function PrintPurchasePage() {
             </div>
             <div>
               <span className="text-gray-500">التاريخ: </span>
-              <span>{new Date(invoice.createdAt).toLocaleString('ar-IQ')}</span>
+              <span>{formatDateTime(invoice.createdAt)}</span>
             </div>
             <div>
               <span className="text-gray-500">الحالة: </span>
@@ -108,11 +117,7 @@ export default function PrintPurchasePage() {
             </div>
             <div>
               <span className="text-gray-500">العملة: </span>
-              <span>{currencyLabel}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">سعر الصرف: </span>
-              <span className="font-mono">{Number(invoice.exchangeRate).toLocaleString('ar-IQ')}</span>
+              <span>ج.م</span>
             </div>
           </div>
           <div className="space-y-1 text-sm text-left">
@@ -154,16 +159,16 @@ export default function PrintPurchasePage() {
                   {line.item.unit}
                 </td>
                 <td className="px-3 py-2 text-center border border-gray-300">
-                  {Number(line.quantity).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                  {formatNumber(line.quantity)}
                 </td>
                 <td className="px-3 py-2 text-center border border-gray-300">
-                  {Number(line.unitCost).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                  {formatMoney(line.unitCost)}
                 </td>
                 <td className="px-3 py-2 text-center border border-gray-300 font-medium">
-                  {Number(line.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                  {formatMoney(line.subtotal)}
                 </td>
                 <td className="px-3 py-2 text-center border border-gray-300 text-gray-500 text-xs">
-                  {line.expiryDate ? new Date(line.expiryDate).toLocaleDateString('ar-IQ') : '—'}
+                  {line.expiryDate ? formatDate(line.expiryDate) : '—'}
                 </td>
               </tr>
             ))}
@@ -175,27 +180,27 @@ export default function PrintPurchasePage() {
           <div className="w-64 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-500">المجموع الفرعي</span>
-              <span>{Number(invoice.subtotal).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currencyLabel}</span>
+              <span>{formatMoney(invoice.subtotal)}</span>
             </div>
             {Number(invoice.discount) > 0 && (
               <div className="flex justify-between text-red-600">
                 <span>الخصم</span>
-                <span>- {Number(invoice.discount).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currencyLabel}</span>
+                <span>- {formatMoney(invoice.discount)}</span>
               </div>
             )}
             <div className="flex justify-between text-base font-bold border-t border-gray-400 pt-1 mt-1">
               <span>الإجمالي</span>
-              <span>{Number(invoice.total).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currencyLabel}</span>
+              <span>{formatMoney(invoice.total)}</span>
             </div>
             {Number(invoice.amountPaid) > 0 && (
               <div className="flex justify-between text-green-700">
                 <span>المدفوع</span>
-                <span>{Number(invoice.amountPaid).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currencyLabel}</span>
+                <span>{formatMoney(invoice.amountPaid)}</span>
               </div>
             )}
             <div className="flex justify-between text-red-600">
               <span>الرصيد المتبقي</span>
-              <span>{Number(invoice.balance).toLocaleString('ar-IQ', { minimumFractionDigits: 3 })} {currencyLabel}</span>
+              <span>{formatMoney(invoice.balance)}</span>
             </div>
           </div>
         </div>
@@ -208,8 +213,9 @@ export default function PrintPurchasePage() {
         )}
 
         <div className="border-t border-gray-300 pt-4 text-center text-xs text-gray-400">
-          شكراً لتعاملكم معنا
+          {printSettings.invoice_footer_ar || 'شكراً لتعاملكم معنا'}
         </div>
+        <InvoiceMarketingFooter settings={printSettings} />
       </div>
     </>
   )

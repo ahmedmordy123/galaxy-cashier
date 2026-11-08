@@ -17,6 +17,16 @@ import stockRouter from './routes/stock.routes'
 import cashStatementRouter from './routes/cashStatement.routes'
 import settingsRouter from './routes/settings.routes'
 import reportsRouter from './routes/reports.routes'
+import quotesRouter from './routes/quotes.routes'
+import backupRouter from './routes/backup.routes'
+import opsRouter from './routes/ops.routes'
+import auditRouter from './routes/audit.routes'
+import etaRouter from './routes/eta.routes'
+import staffAdvanceRouter from './routes/staff-advance.routes'
+import { ensureSqliteSchema } from './db/ensureSqliteSchema'
+import { startAutoBackupScheduler } from './jobs/autoBackup.scheduler'
+import { startEtaScheduler } from './jobs/eta.scheduler'
+import { syncBackupPathConfigFromSettings } from './services/backup.service'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -31,6 +41,8 @@ app.use(cors({
   origin: (origin, cb) => {
     // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return cb(null, true)
+    // Desktop / local loopback (Electron may use localhost or 127.0.0.1)
+    if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true)
     // Allow any LAN/private-network origin in development
     if (/^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(origin)) return cb(null, true)
     // Allow Vercel preview deployments (*.vercel.app)
@@ -70,9 +82,25 @@ app.use('/api/stock', stockRouter)
 app.use('/api/cash-statement', cashStatementRouter)
 app.use('/api/settings', settingsRouter)
 app.use('/api/reports', reportsRouter)
+app.use('/api/quotes', quotesRouter)
+app.use('/api/backup', backupRouter)
+app.use('/api/ops', opsRouter)
+app.use('/api/audit', auditRouter)
+app.use('/api/eta', etaRouter)
+app.use('/api/staff-advances', staffAdvanceRouter)
 
-app.listen(PORT, () => {
-  logger.info(`IMS-Pro API running on port ${PORT}`)
-})
+void ensureSqliteSchema()
+  .then(() => {
+    app.listen(PORT, () => {
+      logger.info(`CASR API running on port ${PORT}`)
+      startAutoBackupScheduler()
+      startEtaScheduler()
+      void syncBackupPathConfigFromSettings().catch(() => {})
+    })
+  })
+  .catch((err) => {
+    logger.error(`Failed to prepare database: ${err instanceof Error ? err.message : err}`)
+    process.exit(1)
+  })
 
 export default app

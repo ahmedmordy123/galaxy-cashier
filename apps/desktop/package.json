@@ -1,19 +1,20 @@
 {
   "name": "@ims-pro/desktop",
   "version": "1.0.0",
-  "description": "IMS-Pro نظام إدارة المخزون — تطبيق ويندوز",
-  "author": "Etana",
+  "description": "Galaxy Cashier — جالاكسي كاشير — Galaxy Digital",
+  "author": "Galaxy Digital",
   "main": "main.js",
   "scripts": {
     "dev":           "electron .",
-    "build:win":     "electron-builder --win --x64",
-    "build:portable":"electron-builder --win portable --x64",
+    "build:win":       "electron-builder --win --x64",
+    "build:installer": "electron-builder --win nsis --x64",
+    "build:portable":  "electron-builder --win portable --x64",
     "build:dir":     "electron-builder --win --x64 --dir"
   },
   "build": {
-    "appId":            "com.etana.imspro",
-    "productName":      "IMS-Pro إيتانا",
-    "copyright":        "Copyright © 2025 Etana",
+    "appId":            "com.galaxydigital.cashier",
+    "productName":      "Galaxy Cashier",
+    "copyright":        "Copyright © 2026 Galaxy Digital",
     "electronVersion":  "31.7.7",
     "asar":             true,
     "directories": {
@@ -48,17 +49,28 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] },
         { "target": "portable", "arch": ["x64"] }
       ],
-      "requestedExecutionLevel": "requireAdministrator"
+      "artifactName": "${productName} ${version}.${ext}",
+      "requestedExecutionLevel": "asInvoker",
+      "signAndEditExecutable": false
     },
     "nsis": {
-      "oneClick":                          false,
-      "perMachine":                        true,
+      "oneClick": false,
+      "perMachine": true,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut":             true,
-      "createStartMenuShortcut":           true
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "جالاكسي كاشير",
+      "uninstallDisplayName": "Galaxy Cashier — جالاكسي كاشير",
+      "runAfterFinish": true,
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "installerLanguages": ["en_US"],
+      "language": "1033",
+      "displayLanguageSelector": false,
+      "include": "installer.nsh"
     }
   },
   "devDependencies": {

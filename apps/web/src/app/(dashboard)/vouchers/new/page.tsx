@@ -7,7 +7,6 @@ import api from '@/lib/api'
 
 type VoucherType = 'RECEIPT' | 'DISBURSEMENT'
 type EntityType = 'CUSTOMER' | 'SUPPLIER' | 'OTHER'
-type Currency = 'USD' | 'IQD'
 
 interface EntityOption {
   id: string
@@ -32,8 +31,8 @@ export default function NewVoucherPage() {
 
   const [form, setForm] = useState({
     amount: '',
-    currency: 'IQD' as Currency,
-    exchangeRate: '1480',
+    currency: 'EGP',
+    exchangeRate: '1',
     description: '',
   })
 
@@ -119,8 +118,8 @@ export default function NewVoucherPage() {
         entityType,
         entityId: entityId || null,
         amount: Number(form.amount),
-        currency: form.currency,
-        exchangeRate: Number(form.exchangeRate),
+        currency: 'EGP',
+        exchangeRate: 1,
         description: form.description,
       })
       router.push('/vouchers')
@@ -270,36 +269,11 @@ export default function NewVoucherPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              العملة *
-            </label>
-            <select
-              name="currency"
-              value={form.currency}
-              onChange={handleFormChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="IQD">دينار عراقي (IQD)</option>
-              <option value="USD">دولار أمريكي (USD)</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العملة</label>
+            <div className="w-full px-3 py-2 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm font-medium">
+              جنيه مصري (ج.م)
+            </div>
           </div>
-        </div>
-
-        {/* Exchange Rate */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            سعر الصرف (IQD لكل USD)
-          </label>
-          <input
-            name="exchangeRate"
-            type="number"
-            step="0.001"
-            min="0.001"
-            value={form.exchangeRate}
-            onChange={handleFormChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          />
         </div>
 
         {/* Description */}

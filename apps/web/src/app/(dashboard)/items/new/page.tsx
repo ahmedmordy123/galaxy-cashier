@@ -19,7 +19,8 @@ function NewItemPageInner() {
   const [form, setForm] = useState({
     barcode: '', name_ar: '', name_en: '', unit: 'piece', categoryId: '',
     costPrice: 0, retailPrice: 0, wholesalePrice: 0, specialPrice: 0,
-    dollarPrice: 0, dinarPrice: 0, minimumStock: 0,
+    dollarPrice: 0, dinarPrice: 0, stockQty: 0, minimumStock: 0,
+    isFavorite: false, trackSerial: false, warrantyMonths: 0, size: '', color: '',
   })
 
   // Pre-fill barcode from scan
@@ -63,12 +64,10 @@ function NewItemPageInner() {
   }
 
   const priceFields = [
-    { name: 'costPrice', label: 'سعر التكلفة' },
-    { name: 'retailPrice', label: 'سعر المفرد' },
-    { name: 'wholesalePrice', label: 'سعر الجملة' },
-    { name: 'specialPrice', label: 'السعر الخاص' },
-    { name: 'dollarPrice', label: 'سعر الدولار (USD)' },
-    { name: 'dinarPrice', label: 'سعر الدينار (IQD)' },
+    { name: 'costPrice', label: 'سعر التكلفة (ج.م)' },
+    { name: 'retailPrice', label: 'سعر المفرد (ج.م)' },
+    { name: 'wholesalePrice', label: 'سعر الجملة (ج.م)' },
+    { name: 'specialPrice', label: 'السعر الخاص (ج.م)' },
   ]
 
   return (
@@ -147,8 +146,15 @@ function NewItemPageInner() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">كمية المخزون *</label>
+            <input name="stockQty" type="number" min="0" step="1" value={form.stockQty} onChange={handleChange} required
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+            <p className="mt-1 text-xs text-gray-400">عدد القطع المتوفرة في المحل حالياً</p>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الحد الأدنى للمخزون</label>
             <input name="minimumStock" type="number" min="0" value={form.minimumStock} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+            <p className="mt-1 text-xs text-gray-400">تنبيه عند وصول الكمية لهذا الرقم أو أقل</p>
           </div>
         </div>
 
@@ -158,10 +164,41 @@ function NewItemPageInner() {
             {priceFields.map(f => (
               <div key={f.name}>
                 <label className="block text-xs text-gray-500 mb-1">{f.label}</label>
-                <input name={f.name} type="number" min="0" step="0.001" value={(form as Record<string, number | string>)[f.name] as number} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+                <input name={f.name} type="number" min="0" step="0.001" value={(form as Record<string, number | string | boolean>)[f.name] as number} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">مقاس (ملابس)</label>
+            <input name="size" value={form.size} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" placeholder="مثلاً L" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">لون (ملابس)</label>
+            <input name="color" value={form.color} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg" placeholder="مثلاً أسود" />
+          </div>
+        </div>
+
+        <div className="space-y-2 border rounded-lg p-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.isFavorite}
+              onChange={(e) => setForm((f) => ({ ...f, isFavorite: e.target.checked }))} />
+            صنف مفضل في شاشة البيع
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.trackSerial}
+              onChange={(e) => setForm((f) => ({ ...f, trackSerial: e.target.checked }))} />
+            تتبع سيريال / IMEI (أجهزة)
+          </label>
+          {form.trackSerial && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">مدة الضمان (شهور)</label>
+              <input name="warrantyMonths" type="number" min={0} value={form.warrantyMonths} onChange={handleChange}
+                className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+          )}
         </div>
 
         {/* Duplicate barcode — offer to edit existing item */}

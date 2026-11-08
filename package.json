@@ -7,6 +7,10 @@
     "packages/*"
   ],
   "scripts": {
+    "test:integration-batch1": "node scripts/integration-batch1.cjs",
+    "test:integration-batch2": "node scripts/integration-batch2-audit.cjs",
+    "test:integration-batch3": "node scripts/integration-batch3-audit.cjs",
+    "test:smoke-e2e": "node scripts/integration-smoke-e2e.cjs",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "start": "turbo run start",
@@ -14,15 +18,18 @@
     "db:generate": "npx prisma generate --schema=packages/db/prisma/schema.prisma",
     "db:migrate": "npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
     "db:seed": "npx tsx packages/db/seed.ts",
+    "db:fresh": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/reset-clean-database.ps1",
     "setup": "npm install && npm run db:generate && npm run db:migrate && npm run db:seed",
-    "electron:dev":     "cd apps/desktop && npm run dev",
+    "electron:dev": "cd apps/desktop && npm run dev",
     "electron:install": "cd apps/desktop && npm install",
-    "electron:build":   "powershell -ExecutionPolicy Bypass -File apps/desktop/build.ps1",
-    "electron:make":    "powershell -ExecutionPolicy Bypass -File apps/desktop/build.ps1"
+    "electron:build": "powershell -ExecutionPolicy Bypass -File apps/desktop/build.ps1",
+    "electron:make": "powershell -ExecutionPolicy Bypass -File apps/desktop/build.ps1"
   },
   "devDependencies": {
+    "7zip-bin": "^5.2.0",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
+    "puppeteer": "^25.3.0",
     "turbo": "^2.0.0",
     "typescript": "^5.4.0"
   },

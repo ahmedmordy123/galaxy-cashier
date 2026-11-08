@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { expensesService } from '@/services/expenses.service'
-import api from '@/lib/api'
+import { toLocalDateInput } from '@/lib/dates'
 
 interface ExpenseCategory {
   id: string
@@ -23,8 +23,8 @@ export default function EditExpensePage() {
   const [form, setForm] = useState({
     categoryId: '',
     amount: '',
-    currency: 'IQD',
-    exchangeRate: '1480',
+    currency: 'EGP',
+    exchangeRate: '1',
     description: '',
     paidBy: '',
     notes: '',
@@ -35,29 +35,22 @@ export default function EditExpensePage() {
     Promise.all([
       expensesService.getCategories(),
       expensesService.getById(id),
-      api.get('/api/settings'),
     ])
-      .then(([catRes, expRes, settingsRes]) => {
+      .then(([catRes, expRes]) => {
         setCategories(catRes.data ?? [])
 
         const exp = expRes.data
         if (exp) {
-          const rate = Number(exp.exchangeRate ?? 1480)
           setForm({
             categoryId: exp.categoryId ?? exp.category?.id ?? '',
             amount: String(Number(exp.amount)),
-            currency: exp.currency ?? 'IQD',
-            exchangeRate: String(rate),
+            currency: 'EGP',
+            exchangeRate: '1',
             description: exp.description ?? '',
             paidBy: exp.paidBy ?? '',
             notes: exp.notes ?? '',
-            date: new Date(exp.date).toISOString().slice(0, 10),
+            date: toLocalDateInput(exp.date),
           })
-        }
-
-        const settingsRate = Number(settingsRes.data?.data?.exchange_rate)
-        if (settingsRate > 0 && !expRes.data?.exchangeRate) {
-          setForm((f) => ({ ...f, exchangeRate: String(settingsRate) }))
         }
       })
       .catch(() => setError('فشل في تحميل بيانات المصروف'))
@@ -79,8 +72,8 @@ export default function EditExpensePage() {
       await expensesService.update(id, {
         categoryId: form.categoryId,
         amount: Number(form.amount),
-        currency: form.currency,
-        exchangeRate: Number(form.exchangeRate),
+        currency: 'EGP',
+        exchangeRate: 1,
         description: form.description || undefined,
         paidBy: form.paidBy || undefined,
         notes: form.notes || undefined,
@@ -88,16 +81,19 @@ export default function EditExpensePage() {
       })
       router.push('/expenses')
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } }
-      setError(axiosErr.response?.data?.error ?? 'فشل في تحديث المصروف')
+      const axiosErr = err as {
+        response?: { data?: { error?: string; details?: Record<string, string[]> } }
+      }
+      const msg = axiosErr.response?.data?.error ?? 'فشل في تحديث المصروف'
+      const details = axiosErr.response?.data?.details
+      const detailText = details
+        ? ' — ' + Object.entries(details).map(([k, v]) => `${k}: ${(v || []).join(', ')}`).join(' | ')
+        : ''
+      setError(msg + detailText)
     } finally {
       setLoading(false)
     }
   }
-
-  const equivalentIQD = form.currency === 'USD' && form.amount
-    ? (Number(form.amount) * Number(form.exchangeRate)).toLocaleString('ar-IQ', { maximumFractionDigits: 0 })
-    : null
 
   if (pageLoading) {
     return (
@@ -161,40 +157,11 @@ export default function EditExpensePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العملة</label>
-            <select
-              name="currency"
-              value={form.currency}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="IQD">دينار عراقي (IQD)</option>
-              <option value="USD">دولار أمريكي (USD)</option>
-            </select>
+            <div className="w-full px-3 py-2 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm font-medium">
+              جنيه مصري (ج.م)
+            </div>
           </div>
         </div>
-
-        {/* Exchange rate (shown when USD) */}
-        {form.currency === 'USD' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              سعر الصرف (IQD لكل USD)
-            </label>
-            <input
-              name="exchangeRate"
-              type="number"
-              step="1"
-              min="1"
-              value={form.exchangeRate}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            />
-            {equivalentIQD && (
-              <p className="mt-1 text-xs text-gray-500">
-                ما يعادل: <span className="font-medium text-gray-700 dark:text-gray-300">{equivalentIQD} دينار</span>
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Date */}
         <div>

@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { vouchersService } from '@/services/vouchers.service'
+import { formatMoney } from '@/lib/currency'
+import { formatDate } from '@/lib/dates'
 
 type VoucherType = 'RECEIPT' | 'DISBURSEMENT'
 type EntityType = 'CUSTOMER' | 'SUPPLIER' | 'OTHER'
-type Currency = 'USD' | 'IQD'
 
 interface Voucher {
   id: string
@@ -15,7 +16,7 @@ interface Voucher {
   entityType: EntityType
   entityId: string | null
   amount: string | number
-  currency: Currency
+  currency: string
   exchangeRate: string | number
   description: string
   createdAt: string
@@ -36,17 +37,6 @@ const ENTITY_LABELS: Record<EntityType, string> = {
   CUSTOMER: 'عميل',
   SUPPLIER: 'مورد',
   OTHER: 'أخرى',
-}
-
-function formatAmount(amount: string | number, currency: Currency): string {
-  return `${Number(amount).toLocaleString('ar-IQ', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  })} ${currency === 'USD' ? 'دولار' : 'دينار'}`
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('ar-IQ')
 }
 
 export default function VouchersPage() {
@@ -209,20 +199,11 @@ export default function VouchersPage() {
                     {ENTITY_LABELS[v.entityType]}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                    {Number(v.amount).toLocaleString('ar-IQ', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 3,
-                    })}
+                    {formatMoney(v.amount)}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        v.currency === 'USD'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}
-                    >
-                      {v.currency === 'USD' ? 'دولار' : 'دينار'}
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                      ج.م
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-500">{formatDate(v.createdAt)}</td>

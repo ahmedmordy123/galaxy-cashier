@@ -1,0 +1,117 @@
+{
+  "at": "2026-11-08T12:03:00.773Z",
+  "passed": 22,
+  "total": 22,
+  "results": [
+    {
+      "name": "G1 total==180",
+      "ok": true,
+      "detail": "total=180"
+    },
+    {
+      "name": "G1 tax≈22.11",
+      "ok": true,
+      "detail": "tax=22.105263157894736"
+    },
+    {
+      "name": "G1 invoice total locked",
+      "ok": true,
+      "detail": "180"
+    },
+    {
+      "name": "G1 stock 50→48",
+      "ok": true,
+      "detail": "qty=48"
+    },
+    {
+      "name": "G1 inventory qty independent of discount",
+      "ok": true,
+      "detail": "invQty=48"
+    },
+    {
+      "name": "G2 total==180",
+      "ok": true,
+      "detail": "total=180"
+    },
+    {
+      "name": "G2 remaining total==90",
+      "ok": true,
+      "detail": "total=90"
+    },
+    {
+      "name": "G2 remaining tax≈11.05",
+      "ok": true,
+      "detail": "tax=11.052631578947368"
+    },
+    {
+      "name": "G2 refund payment==90",
+      "ok": true,
+      "detail": "refund=90"
+    },
+    {
+      "name": "G2 stock A restored 50",
+      "ok": true,
+      "detail": "qty=50"
+    },
+    {
+      "name": "G3 total==200",
+      "ok": true,
+      "detail": "total=200"
+    },
+    {
+      "name": "G3 AR==200",
+      "ok": true,
+      "detail": "bal=200"
+    },
+    {
+      "name": "G3 receipt ok",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":{\"id\":\"cmw7s9h70001aqk3m9asuwqm5\",\"voucherNumber\":\"VCH-20261108-0001\",\"type\":\"RECEIPT\",\"entityType\":\"CUSTOMER\",\"entityId\":\"cmw7s9ddl000gxea0090wharq\",\"amount\":\"50\",\"currency\":\"EGP\",\"exchangeRate\":\"1\",\"description\":\"golden partial\",\"createdById\":\"cmruhq14i0000m04ps09fbmix\",\"createdAt\":\"2026-11-08T12:02:59.533Z\",\"createdBy\":{\"id\":\"cmruhq14i0000m04ps09fbmix\",\"name\":\"مدير النظام\"}}}"
+    },
+    {
+      "name": "G3 AR==150 after receipt",
+      "ok": true,
+      "detail": "bal=150"
+    },
+    {
+      "name": "G4 total==150",
+      "ok": true,
+      "detail": "total=150"
+    },
+    {
+      "name": "G4 remaining total==75 (not 50)",
+      "ok": true,
+      "detail": "total=75"
+    },
+    {
+      "name": "G4 remaining discount==25",
+      "ok": true,
+      "detail": "discount=25"
+    },
+    {
+      "name": "G4 refund==75",
+      "ok": true,
+      "detail": "refund=75"
+    },
+    {
+      "name": "G-shift expectedCash==395",
+      "ok": true,
+      "detail": "expected=395"
+    },
+    {
+      "name": "G-shift shiftCashIn persisted",
+      "ok": true,
+      "detail": "cashIn=510"
+    },
+    {
+      "name": "G-shift shiftReceipts==50",
+      "ok": true,
+      "detail": "receipts=50"
+    },
+    {
+      "name": "profit.revenue == sales.totalEGP",
+      "ok": true,
+      "detail": "profit=545 sales=545"
+    }
+  ]
+}

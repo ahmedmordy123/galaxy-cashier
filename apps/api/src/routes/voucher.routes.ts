@@ -7,7 +7,7 @@ const router = Router()
 router.use(verifyToken)
 
 router.get('/', requireRole('ADMIN', 'MANAGER', 'ACCOUNTANT'), listVouchers)
-router.post('/', requireRole('ADMIN', 'MANAGER', 'ACCOUNTANT'), createVoucherHandler)
+router.post('/', requireRole('ADMIN', 'MANAGER', 'ACCOUNTANT', 'CASHIER'), createVoucherHandler)
 router.get('/:id', requireRole('ADMIN', 'MANAGER', 'ACCOUNTANT'), getVoucher)
 
 export default router

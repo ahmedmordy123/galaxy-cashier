@@ -1,7 +1,14 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { CreateExpenseInput, UpdateExpenseInput } from '../validators/expense.validator'
+import { notFoundError, isPlausibleId } from '../utils/apiError'
+import { prisma } from '../db/prisma'
 
-const prisma = new PrismaClient()
+/** Parse YYYY-MM-DD as local calendar day (noon) — avoids UTC off-by-one in Egypt */
+function parseLocalDateOnly(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return new Date(dateStr)
+  return new Date(y, m - 1, d, 12, 0, 0, 0)
+}
 
 // ─── Category functions ───────────────────────────────────────────────────────
 
@@ -34,13 +41,15 @@ export async function updateExpenseCategory(
 }
 
 export async function softDeleteExpenseCategory(id: string): Promise<void> {
+  if (!isPlausibleId(id)) throw notFoundError()
+  const existing = await prisma.expenseCategory.findUnique({ where: { id } })
+  if (!existing) throw notFoundError()
   const count = await prisma.expense.count({
     where: { categoryId: id, isActive: true },
   })
   if (count > 0) {
     throw new Error('CATEGORY_IN_USE')
   }
-  // No isActive on ExpenseCategory in schema — perform hard delete when safe
   await prisma.expenseCategory.delete({ where: { id } })
 }
 
@@ -116,7 +125,7 @@ export async function createExpense(data: CreateExpenseInput, userId: string) {
       description: data.description ?? '',
       paidBy: data.paidBy ?? null,
       notes: data.notes ?? null,
-      date: new Date(data.date),
+      date: parseLocalDateOnly(data.date),
       createdById: userId,
     },
     include: { category: true },
@@ -132,7 +141,7 @@ export async function updateExpense(id: string, data: UpdateExpenseInput) {
   if (data.description !== undefined) updateData.description = data.description
   if (data.paidBy !== undefined) updateData.paidBy = data.paidBy
   if (data.notes !== undefined) updateData.notes = data.notes
-  if (data.date !== undefined) updateData.date = new Date(data.date)
+  if (data.date !== undefined) updateData.date = parseLocalDateOnly(data.date)
 
   return prisma.expense.update({
     where: { id },
@@ -155,7 +164,7 @@ export async function getExpenseSummary(
     categoryId: string
     categoryNameAr: string
     categoryNameEn: string
-    totalIQD: number
+    totalEGP: number
     count: number
   }>
 > {
@@ -177,7 +186,7 @@ export async function getExpenseSummary(
       categoryId: string
       categoryNameAr: string
       categoryNameEn: string
-      totalIQD: number
+      totalEGP: number
       count: number
     }
   > = {}
@@ -186,20 +195,20 @@ export async function getExpenseSummary(
     const { categoryId } = expense
     const amountNum = Number(expense.amount)
     const rate = Number(expense.exchangeRate ?? 1480)
-    const amountIQD = expense.currency === 'USD' ? amountNum * rate : amountNum
+    const amountEGP = expense.currency === 'USD' ? amountNum * rate : amountNum
 
     if (!grouped[categoryId]) {
       grouped[categoryId] = {
         categoryId,
         categoryNameAr: expense.category.name_ar,
         categoryNameEn: expense.category.name_en,
-        totalIQD: 0,
+        totalEGP: 0,
         count: 0,
       }
     }
-    grouped[categoryId].totalIQD += amountIQD
+    grouped[categoryId].totalEGP += amountEGP
     grouped[categoryId].count += 1
   }
 
-  return Object.values(grouped).sort((a, b) => b.totalIQD - a.totalIQD)
+  return Object.values(grouped).sort((a, b) => b.totalEGP - a.totalEGP)
 }

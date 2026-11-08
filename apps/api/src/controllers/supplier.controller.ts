@@ -1,8 +1,11 @@
 import { Request, Response } from 'express'
+import { prisma } from '../db/prisma'
 import {
   getSuppliers, getSupplierById, createSupplier, updateSupplier,
   softDeleteSupplier, getSupplierStatement,
 } from '../services/supplier.service'
+import { sendRouteError } from '../utils/apiError'
+import { logAudit } from '../services/audit.service'
 
 export async function listSuppliers(req: Request, res: Response) {
   try {
@@ -48,10 +51,17 @@ export async function editSupplier(req: Request, res: Response) {
 
 export async function deleteSupplier(req: Request, res: Response) {
   try {
-    await softDeleteSupplier(req.params.id)
+    const id = req.params.id
+    await softDeleteSupplier(id)
+    await logAudit(prisma, {
+      userId: req.user!.id,
+      action: 'DELETE_SUPPLIER',
+      entityType: 'SUPPLIER',
+      entityId: id,
+    })
     res.json({ success: true })
-  } catch {
-    res.status(500).json({ success: false, error: 'Failed to delete supplier' })
+  } catch (e) {
+    return sendRouteError(res, e, 'فشل حذف المورد')
   }
 }
 

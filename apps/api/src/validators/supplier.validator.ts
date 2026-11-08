@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import { currencySchema } from './currency.schema'
 
 export const createSupplierSchema = z.object({
   name: z.string().min(1),
   phone: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
-  currency: z.enum(['USD', 'IQD']).default('IQD'),
+  currency: currencySchema,
   notes: z.string().optional().nullable(),
 })
 

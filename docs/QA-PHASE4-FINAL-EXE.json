@@ -1,0 +1,72 @@
+﻿{
+    "at":  "2026-11-08T14:12:08.5988772+02:00",
+    "passed":  13,
+    "total":  13,
+    "results":  [
+                    {
+                        "name":  "dist has Setup",
+                        "ok":  true,
+                        "detail":  "Setup copied"
+                    },
+                    {
+                        "name":  "dist has Portable",
+                        "ok":  true,
+                        "detail":  "Portable copied"
+                    },
+                    {
+                        "name":  "unpacked/Setup-bits healthy",
+                        "ok":  true,
+                        "detail":  "win-unpacked"
+                    },
+                    {
+                        "name":  "login on packaged API",
+                        "ok":  true,
+                        "detail":  "token=True"
+                    },
+                    {
+                        "name":  "Restore immediate (packaged)",
+                        "ok":  true,
+                        "detail":  "markerGone=True file=cashier-backup-2026-11-08T12-10-33.db"
+                    },
+                    {
+                        "name":  "auto-backup config present",
+                        "ok":  true,
+                        "detail":  "{\"enabled\":true,\"intervalHours\":6,\"keepCount\":30,\"lastAt\":\"2026-11-08T11:54:42.367Z\",\"directory\":\"C:\\\\Users\\\\Nour Soft\\\\Documents\\\\CASR-Sim-Backups\",\"secondaryDirectory\":null,\"onExit\":true,\"defaultDirectory\":\"C:\\\\Users\\\\Nour Soft\\\\Documents\\\\CASR-Backups\",\"pathLooksLikeGoogleDrive\":false,\"googleDrive\":{\"installed\":true,\"roots\":[\"G:\\\\My Drive\",\"G:\\\\\"],\"suggestedBackupDir\":\"G:\\\\My Drive\\\\CASR-Backups\",\"driveProcessRunning\":true,\"hints\":[\"تم اكتشاف Google Drive. يُفضّل حفظ النسخ داخل مجلد مزامن (مثل My Drive\\\\CASR-Backups).\"]},\"nextDueAt\":\"2026-11-08T17:54:42.367Z\"}"
+                    },
+                    {
+                        "name":  "single-instance --sales",
+                        "ok":  true,
+                        "detail":  "nav=True spawn=False listeners=1"
+                    },
+                    {
+                        "name":  "Portable TEMP healthy",
+                        "ok":  true,
+                        "detail":  "from dist copy"
+                    },
+                    {
+                        "name":  "Portable uses Documents DB",
+                        "ok":  true,
+                        "detail":  "shared with Setup path"
+                    },
+                    {
+                        "name":  "Portable no local DB duplicate",
+                        "ok":  true,
+                        "detail":  "count=0"
+                    },
+                    {
+                        "name":  "Setup silent install exit",
+                        "ok":  true,
+                        "detail":  "exit=0 installed=True"
+                    },
+                    {
+                        "name":  "Setup-installed app healthy",
+                        "ok":  true,
+                        "detail":  "C:\\Program Files\\Galaxy Cashier\\Galaxy Cashier.exe"
+                    },
+                    {
+                        "name":  "Setup-installed uses Documents DB",
+                        "ok":  true,
+                        "detail":  "same canonical path"
+                    }
+                ]
+}

@@ -22,6 +22,9 @@ export const itemsService = {
   delete: (id: string) =>
     api.delete(`/api/items/${id}`).then((r) => r.data),
 
+  bulk: (body: Record<string, unknown>) =>
+    api.post('/api/items/bulk', body).then((r) => r.data),
+
   validateImport: (file: File) => {
     const form = new FormData()
     form.append('file', file)

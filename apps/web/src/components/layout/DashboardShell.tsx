@@ -84,6 +84,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       <Topbar sidebarWidth={sidebarWidth} onMenuToggle={handleToggle} />
 
       <main
+        className="dashboard-main"
         style={{
           marginRight: sidebarWidth,
           paddingTop: 64,

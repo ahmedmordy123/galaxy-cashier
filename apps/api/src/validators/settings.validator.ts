@@ -1,15 +1,36 @@
 import { z } from 'zod'
+import { priceTypeSchema } from './currency.schema'
 
 export const updateSettingsSchema = z.object({
-  business_name_ar: z.string().min(1).optional(),
-  business_name_en: z.string().min(1).optional(),
-  default_currency: z.enum(['IQD', 'USD']).optional(),
-  default_price_type: z.enum(['RETAIL', 'WHOLESALE', 'SPECIAL', 'DOLLAR', 'DINAR']).optional(),
-  tax_rate: z.string().optional(),
-  paper_width: z.enum(['58', '80']).optional(),
+  business_name_ar: z.string().optional(),
+  business_name_en: z.string().optional(),
+  business_address: z.string().optional(),
+  business_phone: z.string().optional(),
+  invoice_footer_ar: z.string().optional(),
+  invoice_footer_en: z.string().optional(),
+  default_currency: z.enum(['EGP', 'IQD', 'USD']).optional().transform(() => 'EGP'),
+  default_price_type: priceTypeSchema.optional(),
+  tax_rate: z.union([z.string(), z.number()]).optional().transform((v) => {
+    if (v === undefined) return undefined
+    const n = Number(v)
+    return String(Number.isFinite(n) ? n : 0)
+  }),
+  paper_width: z.enum(['58', '80', 'A4']).optional(),
   minimum_stock_alert: z.enum(['true', 'false']).optional(),
+  invoice_marketing_enabled: z.enum(['true', 'false']).optional(),
+  invoice_marketing_brand: z.string().optional(),
+  invoice_facebook_handle: z.string().optional(),
+  auto_backup_enabled: z.enum(['true', 'false']).optional(),
+  auto_backup_interval_hours: z.union([z.string(), z.number()]).optional(),
+  auto_backup_keep_count: z.union([z.string(), z.number()]).optional(),
+  /** Absolute path for backups (empty = default Documents\\CASR-Backups) */
+  backup_directory: z.string().max(500).optional(),
+  /** Optional second absolute path (USB / external folder); best-effort mirror */
+  backup_directory_secondary: z.string().max(500).optional(),
+  /** Copy DB when the desktop app closes */
+  backup_on_exit: z.enum(['true', 'false']).optional(),
+  backup_path_drive_warning: z.enum(['true', 'false']).optional(),
 })
-
 export const updateExchangeRateSchema = z.object({
   rate: z.number().positive().min(1),
 })

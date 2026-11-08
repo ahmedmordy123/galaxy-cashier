@@ -3,12 +3,13 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { BRAND } from '@/lib/branding'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
-  title: 'IMS-Pro - Inventory Management System',
-  description: 'Professional Inventory & Point-of-Sale Management System',
+  title: `${BRAND.documentTitle} | ${BRAND.companyNameAr}`,
+  description: `${BRAND.productNameEn} — ${BRAND.companyNameEn} digital marketing`,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

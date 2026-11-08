@@ -17,7 +17,7 @@ export default function EditItemPage() {
   const [form, setForm] = useState({
     barcode: '', name_ar: '', name_en: '', unit: 'piece', categoryId: '',
     costPrice: 0, retailPrice: 0, wholesalePrice: 0, specialPrice: 0,
-    dollarPrice: 0, dinarPrice: 0, minimumStock: 0,
+    dollarPrice: 0, dinarPrice: 0, stockQty: 0, minimumStock: 0,
   })
 
   useEffect(() => {
@@ -38,6 +38,7 @@ export default function EditItemPage() {
         specialPrice: Number(item.specialPrice),
         dollarPrice: Number(item.dollarPrice),
         dinarPrice: Number(item.dinarPrice),
+        stockQty: Number(item.stockQty),
         minimumStock: Number(item.minimumStock),
       })
     }).catch(() => router.push('/items')).finally(() => setFetching(false))
@@ -64,12 +65,10 @@ export default function EditItemPage() {
   if (fetching) return <div className="p-8 text-center text-gray-500">جار التحميل...</div>
 
   const priceFields = [
-    { name: 'costPrice', label: 'سعر التكلفة' },
-    { name: 'retailPrice', label: 'سعر المفرد' },
-    { name: 'wholesalePrice', label: 'سعر الجملة' },
-    { name: 'specialPrice', label: 'السعر الخاص' },
-    { name: 'dollarPrice', label: 'سعر الدولار (USD)' },
-    { name: 'dinarPrice', label: 'سعر الدينار (IQD)' },
+    { name: 'costPrice', label: 'سعر التكلفة (ج.م)' },
+    { name: 'retailPrice', label: 'سعر المفرد (ج.م)' },
+    { name: 'wholesalePrice', label: 'سعر الجملة (ج.م)' },
+    { name: 'specialPrice', label: 'السعر الخاص (ج.م)' },
   ]
 
   return (
@@ -122,6 +121,12 @@ export default function EditItemPage() {
               <option value="">— اختر فئة —</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">كمية المخزون</label>
+            <input name="stockQty" type="number" min="0" step="1" value={form.stockQty} onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+            <p className="mt-1 text-xs text-gray-400">عدد القطع المتوفرة في المحل</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الحد الأدنى للمخزون</label>

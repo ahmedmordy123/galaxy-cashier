@@ -7,7 +7,7 @@ export function validateRequest(schema: ZodSchema) {
     if (!result.success) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
+        error: 'بيانات غير صحيحة',
         details: result.error.flatten().fieldErrors,
       })
     }
