@@ -268,12 +268,21 @@ async function main() {
       `receipts=${closed.data?.data?.shiftReceipts}`
     )
 
-    // Profit must use discounted totals for G1-like invoice (spot-check via sales vs profit field names)
+    // Profit revenue = net-of-tax (VAT excluded). Must be ≤ customer-paid sales total.
     const salesR = await req(token, 'GET', `/reports/sales?from=${today}&to=${today}`)
     const profitR = await req(token, 'GET', `/reports/profit?from=${today}&to=${today}`)
     const sTot = Number(salesR.data.data.summary.totalEGP)
     const pRev = Number(profitR.data.data.summary.totalRevenue)
-    check('profit.revenue == sales.totalEGP', nearly(pRev, sTot), `profit=${pRev} sales=${sTot}`)
+    check(
+      'profit.revenue ≤ sales.totalEGP (VAT excluded from profit)',
+      pRev <= sTot + 0.02,
+      `profit=${pRev} sales=${sTot}`,
+    )
+    check(
+      'profit net-of-tax wedge vs sales',
+      sTot - pRev > 1,
+      `wedge=${(sTot - pRev).toFixed(2)}`,
+    )
   } finally {
     try {
       execSync(`taskkill /pid ${api.pid} /f /t`, { stdio: 'ignore' })

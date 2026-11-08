@@ -18,6 +18,7 @@ export default function EditItemPage() {
     barcode: '', name_ar: '', name_en: '', unit: 'piece', categoryId: '',
     costPrice: 0, retailPrice: 0, wholesalePrice: 0, specialPrice: 0,
     dollarPrice: 0, dinarPrice: 0, stockQty: 0, minimumStock: 0,
+    taxExempt: false,
   })
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function EditItemPage() {
         dinarPrice: Number(item.dinarPrice),
         stockQty: Number(item.stockQty),
         minimumStock: Number(item.minimumStock),
+        taxExempt: Boolean((item as { taxExempt?: boolean }).taxExempt),
       })
     }).catch(() => router.push('/items')).finally(() => setFetching(false))
   }, [id, router])
@@ -140,11 +142,20 @@ export default function EditItemPage() {
             {priceFields.map(f => (
               <div key={f.name}>
                 <label className="block text-xs text-gray-500 mb-1">{f.label}</label>
-                <input name={f.name} type="number" min="0" step="0.001" value={(form as Record<string, number | string>)[f.name] as number} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+                <input name={f.name} type="number" min="0" step="0.001" value={(form as Record<string, number | string | boolean>)[f.name] as number} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
               </div>
             ))}
           </div>
         </div>
+
+        <label className="flex items-center gap-2 text-sm border rounded-lg p-3">
+          <input
+            type="checkbox"
+            checked={form.taxExempt}
+            onChange={(e) => setForm((f) => ({ ...f, taxExempt: e.target.checked }))}
+          />
+          معفى من ضريبة القيمة المضافة
+        </label>
 
         <div className="flex gap-3 pt-2">
           <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">

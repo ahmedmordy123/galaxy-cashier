@@ -1,0 +1,82 @@
+{
+  "at": "2026-11-08T12:42:56.327Z",
+  "passed": 15,
+  "total": 15,
+  "results": [
+    {
+      "name": "subtotal 260",
+      "ok": true,
+      "detail": "260"
+    },
+    {
+      "name": "net 234",
+      "ok": true,
+      "detail": "234"
+    },
+    {
+      "name": "tax 32.76",
+      "ok": true,
+      "detail": "32.76"
+    },
+    {
+      "name": "total 266.76",
+      "ok": true,
+      "detail": "266.76"
+    },
+    {
+      "name": "profit 34 (tax excluded)",
+      "ok": true,
+      "detail": "34"
+    },
+    {
+      "name": "return net 117",
+      "ok": true,
+      "detail": "117"
+    },
+    {
+      "name": "return tax 16.38",
+      "ok": true,
+      "detail": "16.38"
+    },
+    {
+      "name": "return total 133.38",
+      "ok": true,
+      "detail": "133.38"
+    },
+    {
+      "name": "2×partial == invoice total",
+      "ok": true,
+      "detail": "266.76"
+    },
+    {
+      "name": "residual after 1 unit 133.38",
+      "ok": true,
+      "detail": "133.38"
+    },
+    {
+      "name": "ret1+residual == total",
+      "ok": true,
+      "detail": "266.76"
+    },
+    {
+      "name": "allocateExactTotal sum 100.01",
+      "ok": true,
+      "detail": "33.34+33.34+33.33=100.01"
+    },
+    {
+      "name": "allocateExactTotal no unit off by >0.01 from equal",
+      "ok": true,
+      "detail": "33.34,33.34,33.33"
+    },
+    {
+      "name": "exempt mix tax on half only",
+      "ok": true,
+      "detail": "18.2"
+    },
+    {
+      "name": "exempt mix total 278.2",
+      "ok": true,
+      "detail": "278.2"
+    }
+  ]
+}

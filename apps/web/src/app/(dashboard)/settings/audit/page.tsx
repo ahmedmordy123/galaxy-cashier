@@ -27,12 +27,16 @@ const ACTION_LABELS: Record<string, string> = {
   RECONCILE_BALANCE: 'تسوية رصيد',
   SHIFT_REBIND: 'إعادة ربط وردية',
   UPDATE_INVOICE: 'تعديل فاتورة',
+  PRICE_OVERRIDE: 'تعديل سعر بيع',
+  SETTINGS_TAX_CHANGE: 'تغيير إعدادات الضريبة',
+  SETTINGS_CHANGE: 'تغيير إعدادات',
 }
 
 export default function AuditLogPage() {
   const [rows, setRows] = useState<AuditRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [actionFilter, setActionFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -40,7 +44,9 @@ export default function AuditLogPage() {
     setLoading(true)
     setError('')
     try {
-      const res = await api.get('/api/audit', { params: { page, limit: 40 } })
+      const res = await api.get('/api/audit', {
+        params: { page, limit: 40, ...(actionFilter ? { action: actionFilter } : {}) },
+      })
       const data = res.data?.data
       setRows(data?.data ?? [])
       setTotal(data?.total ?? 0)
@@ -49,7 +55,7 @@ export default function AuditLogPage() {
     } finally {
       setLoading(false)
     }
-  }, [page])
+  }, [page, actionFilter])
 
   useEffect(() => {
     load()
@@ -69,6 +75,25 @@ export default function AuditLogPage() {
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>
       )}
+
+      <div className="mb-4 flex flex-wrap gap-2 items-center">
+        <label className="text-sm text-gray-600 dark:text-gray-300">تصفية الإجراء:</label>
+        <select
+          value={actionFilter}
+          onChange={(e) => {
+            setPage(1)
+            setActionFilter(e.target.value)
+          }}
+          className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
+        >
+          <option value="">الكل</option>
+          <option value="PRICE_OVERRIDE">تعديل سعر بيع</option>
+          <option value="SETTINGS_TAX_CHANGE">تغيير إعدادات الضريبة</option>
+          <option value="CONFIRM_INVOICE">تأكيد فاتورة</option>
+          <option value="RETURN_PARTIAL">مرتجع جزئي</option>
+          <option value="RETURN_FULL">مرتجع كامل</option>
+        </select>
+      </div>
 
       {loading ? (
         <p className="text-gray-500 text-sm">جار التحميل...</p>

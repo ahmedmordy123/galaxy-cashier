@@ -15,6 +15,7 @@ export function verifyToken(req: Request, res: Response, next: NextFunction) {
       username: string
       name: string
       language: string
+      canEditPrice?: boolean
     }
     req.user = {
       id: payload.sub,
@@ -22,6 +23,10 @@ export function verifyToken(req: Request, res: Response, next: NextFunction) {
       username: payload.username,
       name: payload.name,
       language: payload.language as AuthUser['language'],
+      canEditPrice:
+        Boolean(payload.canEditPrice) ||
+        payload.role === 'ADMIN' ||
+        payload.role === 'MANAGER',
     }
     next()
   } catch {

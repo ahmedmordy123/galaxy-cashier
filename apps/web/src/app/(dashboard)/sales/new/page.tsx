@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { CameraScanner } from '@/components/barcode/CameraScanner'
 import { QuickAddItemModal, type ScannedItem } from '@/components/barcode/QuickAddItemModal'
 import { CURRENCY_CODE, formatMoney, formatNumber } from '@/lib/currency'
-import { computeInclusiveTotals, type DiscountType } from '@/lib/salesTotals'
+import { computeInvoiceTotals, type DiscountType, type TaxMode } from '@/lib/salesTotals'
 
 type PriceType = 'RETAIL' | 'WHOLESALE' | 'SPECIAL'
 type PaymentType = 'CASH' | 'CREDIT'
@@ -43,6 +43,8 @@ interface InvoiceLine {
   barcode: string
   quantity: number
   unitPrice: number
+  /** Catalog price when line was added (before override) */
+  originalUnitPrice: number
   costPrice: number
   discount: number
   lineTotal: number
@@ -50,6 +52,7 @@ interface InvoiceLine {
   allPrices: AllPrices
   trackSerial: boolean
   serialNumber: string
+  taxExempt: boolean
 }
 
 interface CustomerOption {
@@ -71,6 +74,7 @@ interface ItemData extends AllPrices {
   stockQty: number
   costPrice?: number
   trackSerial?: boolean
+  taxExempt?: boolean
   isFavorite?: boolean
 }
 
@@ -94,6 +98,8 @@ export default function NewSalesInvoicePage() {
   const { playBeep, playBuzz } = useSoundFeedback()
   const { user } = useAuth()
   const hideCost = user?.role === 'CASHIER'
+  const canEditPrice =
+    Boolean(user?.canEditPrice) || user?.role === 'ADMIN' || user?.role === 'MANAGER'
   const canStarFavorite = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'STAFF'
 
   const [lines, setLines] = useState<InvoiceLine[]>([])
@@ -140,6 +146,10 @@ export default function NewSalesInvoicePage() {
   const [showPayModal, setShowPayModal] = useState(false)
   const [paidAmount, setPaidAmount] = useState<number>(0)
   const [taxPct, setTaxPct] = useState(0)
+  const [taxMode, setTaxMode] = useState<TaxMode>('INCLUSIVE')
+  const [vatEnabled, setVatEnabled] = useState(true)
+  const [belowCostPolicy, setBelowCostPolicy] = useState<'BLOCK' | 'WARN'>('WARN')
+  const [belowCostConfirmed, setBelowCostConfirmed] = useState(false)
 
   function reloadFavorites() {
     api.get('/api/items', { params: { limit: 100 } }).then((r) => {
@@ -165,6 +175,9 @@ export default function NewSalesInvoicePage() {
     api.get('/api/settings').then((r) => {
       const s = r.data?.data ?? {}
       setTaxPct(Number.isFinite(Number(s.tax_rate)) ? Number(s.tax_rate) : 14)
+      setTaxMode(s.tax_mode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE')
+      setVatEnabled(s.vat_enabled !== 'false')
+      setBelowCostPolicy(s.below_cost_policy === 'BLOCK' ? 'BLOCK' : 'WARN')
     }).catch(() => {})
     reloadFavorites()
     salesService.listParked().then((r) => setParked(r.data || [])).catch(() => {})
@@ -234,6 +247,9 @@ export default function NewSalesInvoicePage() {
                 dollarPrice: unitPrice,
                 dinarPrice: unitPrice,
               }
+          const originalUnitPrice = Number(
+            (line as { originalUnitPrice?: number }).originalUnitPrice ?? unitPrice,
+          )
           loadedLines.push({
             itemId: line.itemId,
             nameAr: line.item.name_ar,
@@ -241,6 +257,7 @@ export default function NewSalesInvoicePage() {
             barcode: line.item.barcode || '',
             quantity: qty,
             unitPrice,
+            originalUnitPrice,
             costPrice,
             discount: lineDisc,
             lineTotal: Number(line.subtotal),
@@ -248,6 +265,10 @@ export default function NewSalesInvoicePage() {
             allPrices: prices,
             trackSerial: Boolean(itemData?.trackSerial ?? line.item.trackSerial),
             serialNumber: line.serialNumber?.trim() || '',
+            taxExempt: Boolean(
+              (line as { taxExempt?: boolean }).taxExempt ??
+                (itemData as { taxExempt?: boolean } | undefined)?.taxExempt,
+            ),
           })
         }
         if (!cancelled) setLines(loadedLines)
@@ -286,11 +307,23 @@ export default function NewSalesInvoicePage() {
     }
   }, [customerId, paymentType])
 
-  const { subtotal, tax: taxAmount, total, discountAmount } = computeInclusiveTotals(
+  const {
+    subtotal,
+    tax: taxAmount,
+    total,
+    discountAmount,
+  } = computeInvoiceTotals(
     lines.reduce((sum, l) => sum + l.lineTotal, 0),
     discountType,
     discount,
     taxPct,
+    {
+      taxMode,
+      taxEnabled: vatEnabled,
+      taxableSubtotal: lines
+        .filter((l) => !l.taxExempt)
+        .reduce((sum, l) => sum + l.lineTotal, 0),
+    },
   )
 
   const lossLines = hideCost
@@ -398,6 +431,7 @@ export default function NewSalesInvoicePage() {
             barcode: item.barcode ?? '',
             quantity: 1,
             unitPrice: price,
+            originalUnitPrice: price,
             costPrice,
             discount: 0,
             lineTotal: calcLineTotal(1, price, 0),
@@ -405,6 +439,7 @@ export default function NewSalesInvoicePage() {
             allPrices: prices,
             trackSerial: true,
             serialNumber: '',
+            taxExempt: Boolean(item.taxExempt),
           },
         ]
       }
@@ -425,6 +460,7 @@ export default function NewSalesInvoicePage() {
           barcode: item.barcode ?? '',
           quantity: 1,
           unitPrice: price,
+          originalUnitPrice: price,
           costPrice,
           discount: 0,
           lineTotal: calcLineTotal(1, price, 0),
@@ -432,6 +468,7 @@ export default function NewSalesInvoicePage() {
           allPrices: prices,
           trackSerial: false,
           serialNumber: '',
+          taxExempt: Boolean(item.taxExempt),
         },
       ]
     })
@@ -503,12 +540,17 @@ export default function NewSalesInvoicePage() {
     setShowItemDropdown(false)
   }
 
-  function updateLine(idx: number, field: 'quantity' | 'discount', value: number) {
+  function updateLine(idx: number, field: 'quantity' | 'discount' | 'unitPrice', value: number) {
     setLines((prev) => prev.map((l, i) => {
       if (i !== idx) return l
       let qty = field === 'quantity' ? value : l.quantity
       if (l.trackSerial && field === 'quantity') qty = 1
       const disc = field === 'discount' ? value : l.discount
+      if (field === 'unitPrice') {
+        if (!canEditPrice) return l
+        const price = Math.max(0, value)
+        return { ...l, unitPrice: price, lineTotal: calcLineTotal(qty, price, disc) }
+      }
       return { ...l, quantity: qty, discount: disc, lineTotal: calcLineTotal(qty, l.unitPrice, disc) }
     }))
   }
@@ -531,7 +573,13 @@ export default function NewSalesInvoicePage() {
     setLines((prev) => prev.map((l, i) => {
       if (i !== idx) return l
       const newPrice = resolvePrice(l.allPrices, pt)
-      return { ...l, linePriceType: pt, unitPrice: newPrice, lineTotal: calcLineTotal(l.quantity, newPrice, l.discount) }
+      return {
+        ...l,
+        linePriceType: pt,
+        unitPrice: newPrice,
+        originalUnitPrice: newPrice,
+        lineTotal: calcLineTotal(l.quantity, newPrice, l.discount),
+      }
     }))
   }
 
@@ -549,10 +597,13 @@ export default function NewSalesInvoicePage() {
       discountType,
       discount,
       notes: notes || undefined,
+      belowCostConfirmed: belowCostConfirmed || undefined,
       items: lines.map((l) => ({
         itemId: l.itemId,
         quantity: l.quantity,
         unitPrice: l.unitPrice,
+        originalUnitPrice: l.originalUnitPrice,
+        priceOverridden: Math.abs(l.unitPrice - l.originalUnitPrice) > 0.001,
         discount: l.discount,
         ...(l.trackSerial && l.serialNumber.trim()
           ? { serialNumber: l.serialNumber.trim() }
@@ -744,7 +795,13 @@ export default function NewSalesInvoicePage() {
         <span><kbd className="font-mono bg-white dark:bg-gray-800 px-1 rounded">F8</kbd> تعليق</span>
         <span><kbd className="font-mono bg-white dark:bg-gray-800 px-1 rounded">F9</kbd> المعلّق</span>
         <span><kbd className="font-mono bg-white dark:bg-gray-800 px-1 rounded">Esc</kbd> إلغاء/باركود</span>
-        <span className="text-emerald-700 dark:text-emerald-400">الأسعار شامل الضريبة</span>
+        <span className="text-emerald-700 dark:text-emerald-400">
+          {vatEnabled
+            ? taxMode === 'EXCLUSIVE'
+              ? `ضريبة مضافة ${taxPct}%`
+              : `أسعار شامل الضريبة ${taxPct}%`
+            : 'الضريبة متوقفة'}
+        </span>
       </div>
 
       {parkMsg && (
@@ -760,8 +817,21 @@ export default function NewSalesInvoicePage() {
       )}
 
       {!hideCost && lossLines.length > 0 && (
-        <div className="mb-4 rounded-lg border border-red-300 bg-red-50 text-red-800 px-4 py-2 text-sm">
-          {lossLines.length} صنف/أصناف بسعر أقل من التكلفة — راجع قبل التأكيد.
+        <div className="mb-4 rounded-lg border border-red-300 bg-red-50 text-red-800 px-4 py-2 text-sm space-y-2">
+          <div>
+            {lossLines.length} صنف/أصناف بسعر أقل من التكلفة
+            {belowCostPolicy === 'BLOCK' ? ' — البيع ممنوع حسب الإعدادات.' : ' — راجع قبل التأكيد.'}
+          </div>
+          {belowCostPolicy === 'WARN' && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={belowCostConfirmed}
+                onChange={(e) => setBelowCostConfirmed(e.target.checked)}
+              />
+              أؤكد البيع بخسارة
+            </label>
+          )}
         </div>
       )}
 
@@ -1091,10 +1161,26 @@ export default function NewSalesInvoicePage() {
                         )}
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <div className="font-medium text-gray-700 dark:text-gray-300">
-                          {line.unitPrice.toLocaleString("en-EG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                        </div>
-                        {/* Per-line price type toggle */}
+                        {canEditPrice ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={line.unitPrice}
+                            onChange={(e) => updateLine(idx, 'unitPrice', Number(e.target.value))}
+                            className="w-full px-2 py-1 border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm text-center font-medium"
+                            title="تعديل سعر هذه الفاتورة فقط"
+                          />
+                        ) : (
+                          <div className="font-medium text-gray-700 dark:text-gray-300">
+                            {line.unitPrice.toLocaleString('en-EG', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                          </div>
+                        )}
+                        {Math.abs(line.unitPrice - line.originalUnitPrice) > 0.001 && (
+                          <div className="text-[10px] text-amber-600 mt-0.5">
+                            أصلي: {line.originalUnitPrice.toLocaleString('en-EG', { maximumFractionDigits: 2 })}
+                          </div>
+                        )}
                         <div className="flex gap-0.5 justify-center mt-1 flex-wrap">
                           {(Object.keys(PRICE_TYPE_LABELS) as PriceType[]).map((pt) => (
                             <button key={pt} type="button"
@@ -1141,9 +1227,11 @@ export default function NewSalesInvoicePage() {
                     <span>- {formatMoney(discountAmount)}</span>
                   </div>
                 )}
-                {taxPct > 0 && (
+                {vatEnabled && taxPct > 0 && (
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                    <span>ض.ق.م متضمنة ({taxPct}%)</span>
+                    <span>
+                      {taxMode === 'EXCLUSIVE' ? `ض.ق.م مضافة (${taxPct}%)` : `ض.ق.م متضمنة (${taxPct}%)`}
+                    </span>
                     <span>{formatMoney(taxAmount)}</span>
                   </div>
                 )}

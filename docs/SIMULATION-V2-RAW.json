@@ -1,0 +1,189 @@
+{
+  "started": "2026-11-08T12:50:27.900Z",
+  "ended": "2026-11-08T12:50:39.932Z",
+  "runtime": {
+    "mode": "win-unpacked-1.1",
+    "healthMs": 2046
+  },
+  "checks": [
+    {
+      "name": "health ok",
+      "ok": true,
+      "detail": "win-unpacked-1.1 2046ms"
+    },
+    {
+      "name": "admin login",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "settings exclusive VAT",
+      "ok": true,
+      "detail": "EXCLUSIVE"
+    },
+    {
+      "name": "create cashier canEditPrice",
+      "ok": true,
+      "detail": "201"
+    },
+    {
+      "name": "catalog seeded",
+      "ok": true,
+      "detail": "+exempt cmw7tymi1000f11brsdrak2qw"
+    },
+    {
+      "name": "shift open",
+      "ok": true,
+      "detail": "201"
+    },
+    {
+      "name": "G0 sale ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "G0 total 266.76",
+      "ok": true,
+      "detail": "266.76"
+    },
+    {
+      "name": "G0 tax 32.76",
+      "ok": true,
+      "detail": "32.76"
+    },
+    {
+      "name": "G0 netOfTax 234",
+      "ok": true,
+      "detail": "234"
+    },
+    {
+      "name": "G0 profit 34",
+      "ok": true,
+      "detail": "34"
+    },
+    {
+      "name": "G0 partial return ok",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "G0 remaining ≈133.38",
+      "ok": true,
+      "detail": "133.38"
+    },
+    {
+      "name": "G0 second return (residual) ok",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "G0 fully returned total 0",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "price override sale",
+      "ok": true,
+      "detail": "17.1"
+    },
+    {
+      "name": "exempt mix sale ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "exempt mix tax≈18.2",
+      "ok": true,
+      "detail": "18.2"
+    },
+    {
+      "name": "exempt mix total≈228.2",
+      "ok": true,
+      "detail": "228.2"
+    },
+    {
+      "name": "reports sales ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reports profit ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "profit ≤ sales (VAT out)",
+      "ok": true,
+      "detail": "p=9424.55 s=10732.799999999992"
+    },
+    {
+      "name": "audit endpoint",
+      "ok": true,
+      "detail": "200"
+    }
+  ],
+  "dayStats": [
+    {
+      "day": "2026-10-30",
+      "sales": 12,
+      "fails": 0,
+      "target": 12
+    },
+    {
+      "day": "2026-10-31",
+      "sales": 15,
+      "fails": 0,
+      "target": 15
+    },
+    {
+      "day": "2026-11-01",
+      "sales": 18,
+      "fails": 0,
+      "target": 18
+    },
+    {
+      "day": "2026-11-02",
+      "sales": 21,
+      "fails": 0,
+      "target": 21
+    },
+    {
+      "day": "2026-11-03",
+      "sales": 24,
+      "fails": 0,
+      "target": 24
+    },
+    {
+      "day": "2026-11-04",
+      "sales": 12,
+      "fails": 0,
+      "target": 12
+    },
+    {
+      "day": "2026-11-05",
+      "sales": 15,
+      "fails": 0,
+      "target": 15
+    },
+    {
+      "day": "2026-11-06",
+      "sales": 18,
+      "fails": 0,
+      "target": 18
+    },
+    {
+      "day": "2026-11-07",
+      "sales": 21,
+      "fails": 0,
+      "target": 21
+    },
+    {
+      "day": "2026-11-08",
+      "sales": 24,
+      "fails": 0,
+      "target": 24
+    }
+  ],
+  "passed": 23,
+  "total": 23
+}

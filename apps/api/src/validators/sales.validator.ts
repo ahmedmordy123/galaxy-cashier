@@ -12,6 +12,10 @@ export const salesLineSchema = z.object({
   itemId: idString,
   quantity: positiveNumber,
   unitPrice: nonNegativeNumber,
+  /** Catalog price before override; if omitted, server resolves from item */
+  originalUnitPrice: nonNegativeNumber.optional(),
+  /** Explicit flag that cashier overrode the catalog price */
+  priceOverridden: z.boolean().optional(),
   discount: percentNumber.default(0),
   serialNumber: z.preprocess(
     (v) => (v === '' ? null : v),
@@ -29,6 +33,8 @@ export const createSalesInvoiceSchema = z.object({
   discountType: z.enum(['PERCENT', 'FIXED']).default('PERCENT'),
   discount: nonNegativeNumber.default(0),
   notes: z.string().optional(),
+  /** Required when below_cost_policy=WARN and any line is below cost */
+  belowCostConfirmed: z.boolean().optional(),
   items: z.array(salesLineSchema).min(1),
 })
 

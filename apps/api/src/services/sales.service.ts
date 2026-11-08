@@ -4,16 +4,25 @@ import { CreateSalesInvoiceInput } from '../validators/sales.validator'
 import { ensureDefaultWarehouse, stockOut, stockIn } from './stock-ops.service'
 import { prisma } from '../db/prisma'
 import {
+  computeInvoiceTotals,
   computeInclusiveInvoiceTotals,
   parseDiscountType,
+  proportionalReturnShare,
   proportionalReturnTotalInclusive,
+  roundMoney,
   safeDecimal,
   type DiscountType,
 } from '../utils/salesTotals'
+import {
+  assertCanEditPrice,
+  catalogUnitPrice,
+  getTaxPolicySnapshot,
+  userMayEditPrice,
+} from './salesPolicy.service'
 
 async function getTaxPct(): Promise<Decimal> {
-  const taxRateRow = await prisma.settings.findUnique({ where: { key: 'tax_rate' } })
-  return safeDecimal(taxRateRow?.value, 0)
+  const policy = await getTaxPolicySnapshot()
+  return policy.taxPct
 }
 
 import {
@@ -205,7 +214,9 @@ export async function getSalesInvoiceById(id: string) {
   })
 }
 
-export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: string) {
+type SalesActor = { id: string; role: string; canEditPrice?: boolean }
+
+export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: string, actor?: SalesActor) {
   if (data.paymentType === 'CREDIT' && !data.customerId) {
     throw new Error('CREDIT_REQUIRES_CUSTOMER')
   }
@@ -214,20 +225,46 @@ export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: 
   const { discountType, discountValue } = invoiceDiscountMeta(data)
   const defaultWh = await ensureDefaultWarehouse(prisma)
   const warehouseId = (data as { warehouseId?: string }).warehouseId || defaultWh.id
+  const policy = await getTaxPolicySnapshot()
 
   const itemIds = data.items.map((l) => l.itemId)
   const dbItems = await prisma.item.findMany({ where: { id: { in: itemIds } } })
-  const costMap = new Map(dbItems.map((i) => [i.id, Number(i.costPrice)]))
+  const itemMap = new Map(dbItems.map((i) => [i.id, i]))
 
-  const lineData = buildSalesLineData(data, costMap)
+  const mayEdit =
+    actor
+      ? actor.role === 'ADMIN' || actor.role === 'MANAGER' || Boolean(actor.canEditPrice)
+      : await userMayEditPrice(userId)
+
+  const lineData = buildSalesLineData(data, itemMap, mayEdit, actor)
+  const belowCostLines = lineData.filter((l) => l.unitCost.gt(0) && l.unitPrice.lt(l.unitCost))
+  if (belowCostLines.length > 0) {
+    if (policy.belowCostPolicy === 'BLOCK') {
+      const err = new Error('BELOW_COST_BLOCKED') as Error & { statusCode: number }
+      err.statusCode = 400
+      throw err
+    }
+    if (!data.belowCostConfirmed) {
+      const err = new Error('BELOW_COST_CONFIRM_REQUIRED') as Error & { statusCode: number }
+      err.statusCode = 400
+      throw err
+    }
+  }
+
   const subtotal = lineData.reduce((acc, l) => acc.plus(l.subtotal), new Decimal(0))
-  const taxPct = await getTaxPct()
-  const { tax, total } = computeInclusiveInvoiceTotals({
+  const taxableSubtotal = lineData
+    .filter((l) => !l.taxExempt)
+    .reduce((acc, l) => acc.plus(l.subtotal), new Decimal(0))
+  const totals = computeInvoiceTotals({
     linesSubtotal: subtotal,
+    taxableLinesSubtotal: taxableSubtotal,
     discountType,
     discountValue,
-    taxPct,
+    taxPct: policy.taxPct,
+    taxMode: policy.taxMode,
+    taxEnabled: policy.vatEnabled,
   })
+  const { tax, total, netOfTax } = totals
 
   if (data.paymentType === 'CREDIT' && data.customerId) {
     await assertCreditAllowed(data.customerId, total)
@@ -238,11 +275,14 @@ export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: 
     orderBy: { openedAt: 'desc' },
   })
 
+  const hasPriceOverride = lineData.some((l) => l.priceOverridden)
+  const soldBelowCost = belowCostLines.length > 0
+
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
+      const created = await prisma.$transaction(async (tx) => {
         const invoiceNumber = await generateInvoiceNumberInTx(tx)
-        return tx.salesInvoice.create({
+        const inv = await tx.salesInvoice.create({
           data: {
             invoiceNumber,
             customerId: data.customerId ?? null,
@@ -256,6 +296,12 @@ export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: 
             discountType,
             discount: discountValue,
             tax,
+            taxEnabled: policy.vatEnabled && policy.taxPct.gt(0),
+            taxMode: policy.taxMode,
+            taxRate: policy.vatEnabled ? policy.taxPct : new Decimal(0),
+            netOfTax,
+            soldBelowCost,
+            hasPriceOverride,
             total,
             balance: total,
             notes: data.notes ?? null,
@@ -265,9 +311,12 @@ export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: 
               create: lineData.map((l) => ({
                 itemId: l.itemId,
                 quantity: l.quantity,
+                originalUnitPrice: l.originalUnitPrice,
                 unitPrice: l.unitPrice,
                 unitCost: l.unitCost,
                 subtotal: l.subtotal,
+                priceOverridden: l.priceOverridden,
+                taxExempt: l.taxExempt,
                 currency: l.currency,
                 serialNumber: l.serialNumber,
               })),
@@ -282,11 +331,30 @@ export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: 
             },
           },
         })
+
+        for (const l of lineData) {
+          if (!l.priceOverridden) continue
+          await logAudit(tx, {
+            userId,
+            action: 'PRICE_OVERRIDE',
+            entityType: 'SALES_INVOICE',
+            entityId: inv.id,
+            details: {
+              invoiceNumber: inv.invoiceNumber,
+              itemId: l.itemId,
+              originalUnitPrice: l.originalUnitPrice.toNumber(),
+              unitPrice: l.unitPrice.toNumber(),
+              unitCost: l.unitCost.toNumber(),
+            },
+          })
+        }
+        return inv
       })
+      return created
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code
       if ((code === 'P2002' || code === 'P2034') && attempt < 9) {
-        await new Promise(r => setTimeout(r, Math.random() * 30 + 5))
+        await new Promise((r) => setTimeout(r, Math.random() * 30 + 5))
         continue
       }
       throw e
@@ -297,19 +365,48 @@ export async function createSalesInvoice(data: CreateSalesInvoiceInput, userId: 
 
 function buildSalesLineData(
   data: CreateSalesInvoiceInput,
-  costMap: Map<string, number>
+  itemMap: Map<string, {
+    id: string
+    costPrice: unknown
+    retailPrice: unknown
+    wholesalePrice?: unknown
+    specialPrice?: unknown
+    dollarPrice?: unknown
+    dinarPrice?: unknown
+    taxExempt?: boolean | null
+  }>,
+  mayEditPrice: boolean,
+  actor?: SalesActor,
 ) {
   return data.items.map((line) => {
+    const item = itemMap.get(line.itemId)
+    if (!item) throw new Error(`ITEM_NOT_FOUND:${line.itemId}`)
+    const catalog = catalogUnitPrice(item, data.priceType)
+    const original =
+      line.originalUnitPrice != null && Number.isFinite(Number(line.originalUnitPrice))
+        ? Number(line.originalUnitPrice)
+        : catalog
+    const sold = Number(line.unitPrice)
+    const overridden =
+      Boolean(line.priceOverridden) || Math.abs(sold - original) > 0.001
+    if (overridden) {
+      if (!mayEditPrice) {
+        assertCanEditPrice(actor || { id: '', role: 'CASHIER', canEditPrice: false })
+      }
+    }
     const qty = safeDecimal(line.quantity)
-    const price = safeDecimal(line.unitPrice)
+    const price = safeDecimal(sold)
     const discountFactor = new Decimal(1).minus(safeDecimal(line.discount ?? 0).div(100))
     const serialNumber = (line as { serialNumber?: string }).serialNumber || null
     return {
       itemId: line.itemId,
       quantity: qty,
+      originalUnitPrice: safeDecimal(original),
       unitPrice: price,
-      unitCost: safeDecimal(costMap.get(line.itemId) ?? 0),
+      unitCost: safeDecimal(item.costPrice ?? 0),
       subtotal: qty.mul(price).mul(discountFactor),
+      priceOverridden: overridden,
+      taxExempt: Boolean(item.taxExempt),
       currency: 'EGP' as const,
       serialNumber,
     }
@@ -319,14 +416,31 @@ function buildSalesLineData(
 async function computeSalesTotals(data: CreateSalesInvoiceInput, lineData: ReturnType<typeof buildSalesLineData>) {
   const { discountType, discountValue } = invoiceDiscountMeta(data)
   const subtotal = lineData.reduce((acc, l) => acc.plus(l.subtotal), new Decimal(0))
-  const taxPct = await getTaxPct()
-  const { tax, total } = computeInclusiveInvoiceTotals({
+  const taxableSubtotal = lineData
+    .filter((l) => !l.taxExempt)
+    .reduce((acc, l) => acc.plus(l.subtotal), new Decimal(0))
+  const policy = await getTaxPolicySnapshot()
+  const totals = computeInvoiceTotals({
     linesSubtotal: subtotal,
+    taxableLinesSubtotal: taxableSubtotal,
     discountType,
     discountValue,
-    taxPct,
+    taxPct: policy.taxPct,
+    taxMode: policy.taxMode,
+    taxEnabled: policy.vatEnabled,
   })
-  return { subtotal, discountType, discountValue, tax, total }
+  return {
+    subtotal,
+    discountType,
+    discountValue,
+    tax: totals.tax,
+    total: totals.total,
+    netOfTax: totals.netOfTax,
+    taxMode: totals.taxMode,
+    taxEnabled: totals.taxEnabled,
+    taxRate: policy.vatEnabled ? policy.taxPct : new Decimal(0),
+    policy,
+  }
 }
 
 export async function updateSalesInvoice(
@@ -334,6 +448,7 @@ export async function updateSalesInvoice(
   data: CreateSalesInvoiceInput,
   userId: string,
   expectedUpdatedAt?: string,
+  actor?: SalesActor,
 ) {
   if (data.paymentType === 'CREDIT' && !data.customerId) {
     throw new Error('CREDIT_REQUIRES_CUSTOMER')
@@ -356,9 +471,29 @@ export async function updateSalesInvoice(
 
   const itemIds = data.items.map((l) => l.itemId)
   const dbItems = await prisma.item.findMany({ where: { id: { in: itemIds } } })
-  const costMap = new Map(dbItems.map((i) => [i.id, Number(i.costPrice)]))
-  const lineData = buildSalesLineData(data, costMap)
-  const { subtotal, discountType, discountValue, tax, total } = await computeSalesTotals(data, lineData)
+  const itemMap = new Map(dbItems.map((i) => [i.id, i]))
+  const mayEdit =
+    actor
+      ? actor.role === 'ADMIN' || actor.role === 'MANAGER' || Boolean(actor.canEditPrice)
+      : await userMayEditPrice(userId)
+  const lineData = buildSalesLineData(data, itemMap, mayEdit, actor)
+  const totals = await computeSalesTotals(data, lineData)
+  const { subtotal, discountType, discountValue, tax, total, netOfTax, taxMode, taxEnabled, taxRate, policy } =
+    totals
+
+  const belowCostLines = lineData.filter((l) => l.unitCost.gt(0) && l.unitPrice.lt(l.unitCost))
+  if (belowCostLines.length > 0) {
+    if (policy.belowCostPolicy === 'BLOCK') {
+      const err = new Error('BELOW_COST_BLOCKED') as Error & { statusCode: number }
+      err.statusCode = 400
+      throw err
+    }
+    if (!data.belowCostConfirmed) {
+      const err = new Error('BELOW_COST_CONFIRM_REQUIRED') as Error & { statusCode: number }
+      err.statusCode = 400
+      throw err
+    }
+  }
 
   if (data.paymentType === 'CREDIT' && data.customerId) {
     await assertCreditAllowed(data.customerId, total)
@@ -390,6 +525,12 @@ export async function updateSalesInvoice(
         discountType,
         discount: discountValue,
         tax,
+        taxEnabled,
+        taxMode,
+        taxRate,
+        netOfTax,
+        soldBelowCost: belowCostLines.length > 0,
+        hasPriceOverride: lineData.some((l) => l.priceOverridden),
         total,
         balance: total,
         notes: data.notes ?? null,
@@ -397,9 +538,12 @@ export async function updateSalesInvoice(
           create: lineData.map((l) => ({
             itemId: l.itemId,
             quantity: l.quantity,
+            originalUnitPrice: l.originalUnitPrice,
             unitPrice: l.unitPrice,
             unitCost: l.unitCost,
             subtotal: l.subtotal,
+            priceOverridden: l.priceOverridden,
+            taxExempt: l.taxExempt,
             currency: l.currency,
             serialNumber: l.serialNumber,
           })),
@@ -414,6 +558,20 @@ export async function updateSalesInvoice(
         },
       },
     })
+    for (const l of lineData) {
+      if (!l.priceOverridden) continue
+      await logAudit(tx, {
+        userId,
+        action: 'PRICE_OVERRIDE',
+        entityType: 'SALES_INVOICE',
+        entityId: invoiceId,
+        details: {
+          originalUnitPrice: l.originalUnitPrice.toNumber(),
+          unitPrice: l.unitPrice.toNumber(),
+          itemId: l.itemId,
+        },
+      })
+    }
     await logAudit(tx, {
       userId,
       action: 'INVOICE_UPDATE',
@@ -721,14 +879,37 @@ export async function partialReturnInvoice(
   const discountType = parseDiscountType((invoice as { discountType?: string }).discountType)
   const discountValue = new Decimal(invoice.discount.toString())
   const invoiceSubtotal = new Decimal(invoice.subtotal.toString())
-  const taxPct = await getTaxPct()
-  const returnTotal = proportionalReturnTotalInclusive({
+  // Use tax snapshot from the invoice — never live settings (returns keep original VAT)
+  const snapTaxEnabled = (invoice as { taxEnabled?: boolean }).taxEnabled !== false
+  const snapTaxMode =
+    (invoice as { taxMode?: string }).taxMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE'
+  const snapTaxRate = safeDecimal((invoice as { taxRate?: unknown }).taxRate, 0)
+  const snapNet = safeDecimal((invoice as { netOfTax?: unknown }).netOfTax, Number(invoice.total) - Number(invoice.tax))
+  const snapTax = safeDecimal(invoice.tax)
+  const snapTotal = safeDecimal(invoice.total)
+  const shareResult = proportionalReturnShare({
     returnLinesSubtotal: returnSubtotal,
     invoiceSubtotal,
+    invoiceNetOfTax: snapNet,
+    invoiceTax: snapTax,
+    invoiceTotal: snapTotal,
     discountType,
     discountValue,
-    taxPct,
+    taxPct: snapTaxEnabled ? snapTaxRate : new Decimal(0),
+    taxMode: snapTaxMode,
+    taxEnabled: snapTaxEnabled && snapTaxRate.gt(0),
   })
+  let returnTotal = shareResult.returnTotal
+  // Full return of remaining lines: force exact residual so Σ returns == original total
+  const isFullOfRemaining =
+    returnItems.length === invoice.items.length &&
+    returnItems.every((ri) => {
+      const invLine = invoice.items.find((l) => l.itemId === ri.itemId)!
+      return ri.quantity >= Number(invLine.quantity)
+    })
+  if (isFullOfRemaining) {
+    returnTotal = snapTotal
+  }
 
   const whId = invoice.warehouseId
     ? invoice.warehouseId
@@ -779,12 +960,32 @@ export async function partialReturnInvoice(
         discountType === 'FIXED' && invoiceSubtotal.gt(0)
           ? discountValue.mul(newSubtotal).div(invoiceSubtotal)
           : discountValue
-      const { tax: newTax, total: newTotal } = computeInclusiveInvoiceTotals({
+      const remainingTaxable = remainingLines
+        .filter((l) => !(l as { taxExempt?: boolean }).taxExempt)
+        .reduce((acc, l) => acc.plus(new Decimal(l.subtotal.toString())), new Decimal(0))
+      const remainingTotals = computeInvoiceTotals({
         linesSubtotal: newSubtotal,
+        taxableLinesSubtotal: remainingTaxable,
         discountType,
         discountValue: remainingDiscountValue,
-        taxPct,
+        taxPct: snapTaxEnabled ? snapTaxRate : new Decimal(0),
+        taxMode: snapTaxMode,
+        taxEnabled: snapTaxEnabled && snapTaxRate.gt(0),
       })
+      // Keep exact residual: remaining total = original total − returnTotal (no piastre drift)
+      const residualTotal = roundMoney(snapTotal.minus(returnTotal))
+      const newTax = remainingTotals.taxMode === 'EXCLUSIVE'
+        ? roundMoney(residualTotal.minus(remainingTotals.netOfTax))
+        : remainingTotals.tax
+      const newTotal = isFullOfRemaining || remainingLines.length === 0
+        ? new Decimal(0)
+        : residualTotal
+      const newNetOfTax =
+        remainingLines.length === 0
+          ? new Decimal(0)
+          : remainingTotals.taxMode === 'EXCLUSIVE'
+            ? roundMoney(newTotal.minus(newTax))
+            : roundMoney(newTotal.minus(remainingTotals.tax))
 
       const paid = new Decimal(invoice.amountPaid.toString())
       const newPaid =
@@ -818,8 +1019,9 @@ export async function partialReturnInvoice(
         data: {
           subtotal: newSubtotal,
           discount: remainingDiscountValue,
-          tax: newTax,
-          total: newTotal,
+          tax: allReturned ? new Decimal(0) : newTax,
+          netOfTax: allReturned ? new Decimal(0) : newNetOfTax,
+          total: allReturned ? new Decimal(0) : newTotal,
           amountPaid: newPaid,
           balance: newBalance,
           status: allReturned ? 'RETURNED' : 'CONFIRMED',

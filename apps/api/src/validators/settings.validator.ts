@@ -15,6 +15,12 @@ export const updateSettingsSchema = z.object({
     const n = Number(v)
     return String(Number.isFinite(n) ? n : 0)
   }),
+  /** Master switch for VAT on new invoices */
+  vat_enabled: z.enum(['true', 'false']).optional(),
+  /** INCLUSIVE | EXCLUSIVE — snapshot onto each invoice */
+  tax_mode: z.enum(['INCLUSIVE', 'EXCLUSIVE']).optional(),
+  /** BLOCK = reject below-cost sales; WARN = require belowCostConfirmed */
+  below_cost_policy: z.enum(['BLOCK', 'WARN']).optional(),
   paper_width: z.enum(['58', '80', 'A4']).optional(),
   minimum_stock_alert: z.enum(['true', 'false']).optional(),
   invoice_marketing_enabled: z.enum(['true', 'false']).optional(),
@@ -43,6 +49,7 @@ export const createUserSchema = z.object({
   password: z.string().min(6),
   role: z.enum(ALL_ROLES),
   language: z.enum(['ar', 'en']).default('ar'),
+  canEditPrice: z.boolean().optional().default(false),
 })
 
 export const updateUserSchema = z.object({
@@ -50,6 +57,7 @@ export const updateUserSchema = z.object({
   role: z.enum(ALL_ROLES).optional(),
   language: z.enum(['ar', 'en']).optional(),
   isActive: z.boolean().optional(),
+  canEditPrice: z.boolean().optional(),
 })
 
 export const resetPasswordSchema = z.object({

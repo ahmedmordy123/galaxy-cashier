@@ -13,6 +13,7 @@ interface User {
   role: UserRole
   language: 'ar' | 'en'
   isActive: boolean
+  canEditPrice?: boolean
   createdAt: string
 }
 
@@ -54,6 +55,7 @@ export default function UsersPage() {
   const [formPassword, setFormPassword] = useState('')
   const [formRole, setFormRole] = useState<CreatableRole>('ACCOUNTANT')
   const [formLanguage, setFormLanguage] = useState<'ar' | 'en'>('ar')
+  const [formCanEditPrice, setFormCanEditPrice] = useState(false)
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [formMsg, setFormMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -93,6 +95,20 @@ export default function UsersPage() {
     }
   }
 
+  async function handleToggleCanEditPrice(user: User) {
+    if (user.role === 'ADMIN' || user.role === 'MANAGER') return
+    setGlobalMsg(null)
+    const next = !user.canEditPrice
+    try {
+      await settingsService.updateUser(user.id, { canEditPrice: next })
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, canEditPrice: next } : u))
+      )
+    } catch {
+      setGlobalMsg({ type: 'error', text: 'فشل في تحديث صلاحية تعديل السعر' })
+    }
+  }
+
   // ── Create new user ────────────────────────────────────────────────────────
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
@@ -109,6 +125,7 @@ export default function UsersPage() {
         password: formPassword,
         role: formRole,
         language: formLanguage,
+        canEditPrice: formRole === 'ADMIN' ? true : formCanEditPrice,
       })
       setFormMsg({ type: 'success', text: 'تم إنشاء المستخدم بنجاح' })
       setFormName('')
@@ -116,6 +133,7 @@ export default function UsersPage() {
       setFormPassword('')
       setFormRole('ACCOUNTANT')
       setFormLanguage('ar')
+      setFormCanEditPrice(false)
       setShowForm(false)
       loadUsers()
     } catch (err: unknown) {
@@ -164,6 +182,7 @@ export default function UsersPage() {
     setFormPassword('')
     setFormRole('ACCOUNTANT')
     setFormLanguage('ar')
+    setFormCanEditPrice(false)
   }
 
   return (
@@ -275,6 +294,18 @@ export default function UsersPage() {
                   <option value="ar">العربية</option>
                   <option value="en">English</option>
                 </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={formRole === 'ADMIN' || formCanEditPrice}
+                    disabled={formRole === 'ADMIN'}
+                    onChange={(e) => setFormCanEditPrice(e.target.checked)}
+                  />
+                  السماح بتعديل سعر البيع في الفاتورة
+                </label>
               </div>
             </div>
 
@@ -394,6 +425,7 @@ export default function UsersPage() {
                   <th className="px-4 py-3 text-right font-medium">الدور</th>
                   <th className="px-4 py-3 text-right font-medium">اللغة</th>
                   <th className="px-4 py-3 text-right font-medium">الحالة</th>
+                  <th className="px-4 py-3 text-right font-medium">تعديل السعر</th>
                   <th className="px-4 py-3 text-right font-medium">تاريخ الإنشاء</th>
                   <th className="px-4 py-3 text-right font-medium">الإجراءات</th>
                 </tr>
@@ -444,6 +476,28 @@ export default function UsersPage() {
                       <span className={`mr-2 text-xs ${user.isActive ? 'text-green-600' : 'text-gray-400'}`}>
                         {user.isActive ? 'نشط' : 'معطّل'}
                       </span>
+                    </td>
+
+                    {/* canEditPrice */}
+                    <td className="px-4 py-3">
+                      {user.role === 'ADMIN' || user.role === 'MANAGER' ? (
+                        <span className="text-xs text-green-600">دائم</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCanEditPrice(user)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                            user.canEditPrice ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                          }`}
+                          title="صلاحية تعديل سعر البيع"
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                              user.canEditPrice ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      )}
                     </td>
 
                     {/* Created at */}

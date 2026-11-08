@@ -45,6 +45,8 @@ export interface AuthUser {
   name: string
   role: UserRole
   language: Language
+  /** POS: may override unit price on an invoice line */
+  canEditPrice?: boolean
 }
 
 export interface LoginRequest {

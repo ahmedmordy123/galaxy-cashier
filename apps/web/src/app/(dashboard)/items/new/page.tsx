@@ -20,7 +20,7 @@ function NewItemPageInner() {
     barcode: '', name_ar: '', name_en: '', unit: 'piece', categoryId: '',
     costPrice: 0, retailPrice: 0, wholesalePrice: 0, specialPrice: 0,
     dollarPrice: 0, dinarPrice: 0, stockQty: 0, minimumStock: 0,
-    isFavorite: false, trackSerial: false, warrantyMonths: 0, size: '', color: '',
+    isFavorite: false, trackSerial: false, taxExempt: false, warrantyMonths: 0, size: '', color: '',
   })
 
   // Pre-fill barcode from scan
@@ -191,6 +191,11 @@ function NewItemPageInner() {
             <input type="checkbox" checked={form.trackSerial}
               onChange={(e) => setForm((f) => ({ ...f, trackSerial: e.target.checked }))} />
             تتبع سيريال / IMEI (أجهزة)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.taxExempt}
+              onChange={(e) => setForm((f) => ({ ...f, taxExempt: e.target.checked }))} />
+            معفى من ضريبة القيمة المضافة
           </label>
           {form.trackSerial && (
             <div>

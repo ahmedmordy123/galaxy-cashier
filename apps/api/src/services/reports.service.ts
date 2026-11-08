@@ -275,19 +275,30 @@ export async function getProfitReport(params: { from: string; to: string }) {
       quantitySold: number
       revenue: number
       costOfGoods: number
+      originalRevenue: number
     }
   > = {}
 
   for (const inv of invoices) {
-    const invTotal = Number(inv.total)
+    // Profit uses net-of-tax (excludes VAT). Prefer snapshot netOfTax.
+    const invNet = Number(
+      (inv as { netOfTax?: unknown }).netOfTax != null &&
+        Number((inv as { netOfTax?: unknown }).netOfTax) > 0
+        ? (inv as { netOfTax: unknown }).netOfTax
+        : Number(inv.total) - Number(inv.tax || 0),
+    )
     const linesSub = inv.items.reduce((s, li) => s + Number(li.subtotal), 0)
-    const scale = linesSub > 0 ? invTotal / linesSub : 1
+    const scale = linesSub > 0 ? invNet / linesSub : 1
 
     for (const si of inv.items) {
       const { itemId } = si
       const qty = Number(si.quantity)
       const revenueEGP = Number(si.subtotal) * scale
       const unitCost = Number((si as { unitCost?: unknown }).unitCost ?? si.item.costPrice)
+      const originalUnitPrice = Number(
+        (si as { originalUnitPrice?: unknown }).originalUnitPrice ?? si.unitPrice,
+      )
+      const unitPrice = Number(si.unitPrice)
       const cogForLine = qty * unitCost
 
       if (!grouped[itemId]) {
@@ -298,11 +309,14 @@ export async function getProfitReport(params: { from: string; to: string }) {
           quantitySold: 0,
           revenue: 0,
           costOfGoods: 0,
+          originalRevenue: 0,
         }
       }
       grouped[itemId].quantitySold += qty
       grouped[itemId].revenue += revenueEGP
       grouped[itemId].costOfGoods += cogForLine
+      grouped[itemId].originalRevenue += originalUnitPrice * qty * scale
+      void unitPrice
     }
   }
 
@@ -311,7 +325,11 @@ export async function getProfitReport(params: { from: string; to: string }) {
     grossProfit: g.revenue - g.costOfGoods,
   }))
 
-  const totalRevenue = invoices.reduce((s, inv) => s + Number(inv.total), 0)
+  const totalRevenue = invoices.reduce((s, inv) => {
+    const net = Number((inv as { netOfTax?: unknown }).netOfTax)
+    if (Number.isFinite(net) && net > 0) return s + net
+    return s + (Number(inv.total) - Number(inv.tax || 0))
+  }, 0)
   const totalCostOfGoods = items.reduce((s, i) => s + i.costOfGoods, 0)
   const totalGrossProfit = totalRevenue - totalCostOfGoods
 

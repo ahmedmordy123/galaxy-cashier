@@ -114,6 +114,7 @@ export async function getUsers() {
       role: true,
       language: true,
       isActive: true,
+      canEditPrice: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'asc' },
@@ -126,6 +127,7 @@ export async function createUser(data: {
   password: string
   role: 'ADMIN' | 'MANAGER' | 'CASHIER' | 'VIEWER' | 'ACCOUNTANT' | 'STAFF'
   language: 'ar' | 'en'
+  canEditPrice?: boolean
 }) {
   const existing = await prisma.user.findFirst({ where: { username: data.username } })
   if (existing) {
@@ -133,6 +135,8 @@ export async function createUser(data: {
   }
 
   const passwordHash = await bcrypt.hash(data.password, 12)
+  const canEditPrice =
+    data.canEditPrice ?? (data.role === 'ADMIN' || data.role === 'MANAGER')
 
   const user = await prisma.user.create({
     data: {
@@ -141,6 +145,7 @@ export async function createUser(data: {
       passwordHash,
       role: data.role,
       language: data.language,
+      canEditPrice,
     },
     select: {
       id: true,
@@ -149,6 +154,7 @@ export async function createUser(data: {
       role: true,
       language: true,
       isActive: true,
+      canEditPrice: true,
       createdAt: true,
     },
   })
@@ -163,6 +169,7 @@ export async function updateUser(
     role?: 'ADMIN' | 'MANAGER' | 'CASHIER' | 'VIEWER' | 'ACCOUNTANT' | 'STAFF'
     language?: 'ar' | 'en'
     isActive?: boolean
+    canEditPrice?: boolean
   }
 ) {
   return prisma.user.update({
@@ -175,6 +182,7 @@ export async function updateUser(
       role: true,
       language: true,
       isActive: true,
+      canEditPrice: true,
     },
   })
 }

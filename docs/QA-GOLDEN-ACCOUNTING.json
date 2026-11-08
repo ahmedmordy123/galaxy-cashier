@@ -1,7 +1,7 @@
 {
-  "at": "2026-11-08T12:03:00.773Z",
-  "passed": 22,
-  "total": 22,
+  "at": "2026-11-08T12:43:35.043Z",
+  "passed": 23,
+  "total": 23,
   "results": [
     {
       "name": "G1 total==180",
@@ -11,7 +11,7 @@
     {
       "name": "G1 tax≈22.11",
       "ok": true,
-      "detail": "tax=22.105263157894736"
+      "detail": "tax=22.11"
     },
     {
       "name": "G1 invoice total locked",
@@ -41,7 +41,7 @@
     {
       "name": "G2 remaining tax≈11.05",
       "ok": true,
-      "detail": "tax=11.052631578947368"
+      "detail": "tax=11.05"
     },
     {
       "name": "G2 refund payment==90",
@@ -66,7 +66,7 @@
     {
       "name": "G3 receipt ok",
       "ok": true,
-      "detail": "{\"success\":true,\"data\":{\"id\":\"cmw7s9h70001aqk3m9asuwqm5\",\"voucherNumber\":\"VCH-20261108-0001\",\"type\":\"RECEIPT\",\"entityType\":\"CUSTOMER\",\"entityId\":\"cmw7s9ddl000gxea0090wharq\",\"amount\":\"50\",\"currency\":\"EGP\",\"exchangeRate\":\"1\",\"description\":\"golden partial\",\"createdById\":\"cmruhq14i0000m04ps09fbmix\",\"createdAt\":\"2026-11-08T12:02:59.533Z\",\"createdBy\":{\"id\":\"cmruhq14i0000m04ps09fbmix\",\"name\":\"مدير النظام\"}}}"
+      "detail": "{\"success\":true,\"data\":{\"id\":\"cmw7tpnhz001ak3a4obravjut\",\"voucherNumber\":\"VCH-20261108-0001\",\"type\":\"RECEIPT\",\"entityType\":\"CUSTOMER\",\"entityId\":\"cmw7tpjy0000gaiqd8cixga39\",\"amount\":\"50\",\"currency\":\"EGP\",\"exchangeRate\":\"1\",\"description\":\"golden partial\",\"createdById\":\"cmruhq14i0000m04ps09fbmix\",\"createdAt\":\"2026-11-08T12:43:33.816Z\",\"createdBy\":{\"id\":\"cmruhq14i0000m04ps09fbmix\",\"name\":\"مدير النظام\"}}}"
     },
     {
       "name": "G3 AR==150 after receipt",
@@ -109,9 +109,14 @@
       "detail": "receipts=50"
     },
     {
-      "name": "profit.revenue == sales.totalEGP",
+      "name": "profit.revenue ≤ sales.totalEGP (VAT excluded from profit)",
       "ok": true,
-      "detail": "profit=545 sales=545"
+      "detail": "profit=511.84 sales=545"
+    },
+    {
+      "name": "profit net-of-tax wedge vs sales",
+      "ok": true,
+      "detail": "wedge=33.16"
     }
   ]
 }

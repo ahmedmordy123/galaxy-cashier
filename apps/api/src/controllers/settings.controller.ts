@@ -47,7 +47,28 @@ export async function updateSettingsHandler(req: Request, res: Response) {
       }
     }
 
+    const before = await getAllSettings()
     const settings = await updateSettings(data)
+    // Audit VAT / tax-mode / below-cost policy changes (admin-only route)
+    const watch = ['vat_enabled', 'tax_mode', 'tax_rate', 'below_cost_policy'] as const
+    const changed = watch.filter((k) => data[k] !== undefined && String(before[k] ?? '') !== String(data[k]))
+    if (changed.length && req.user?.id) {
+      try {
+        const { logAudit } = await import('../services/audit.service')
+        const { prisma } = await import('../db/prisma')
+        await logAudit(prisma, {
+          userId: req.user.id,
+          action: 'SETTINGS_TAX_CHANGE',
+          entityType: 'SETTINGS',
+          entityId: null,
+          details: Object.fromEntries(
+            changed.map((k) => [k, { from: before[k] ?? null, to: data[k] }]),
+          ),
+        })
+      } catch {
+        /* non-fatal */
+      }
+    }
     res.json({ success: true, data: settings })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to update settings'

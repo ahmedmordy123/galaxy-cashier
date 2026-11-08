@@ -1,7 +1,7 @@
 # Galaxy Cashier (CASR) — Features Audit (نهائي)
 
-> **آخر تحديث:** 2026-11-08 — بعد المرحلة 4  
-> **قاعدة:** `شغال` = إثبات بتشغيل/اختبار. التفاصيل: `TEST_REPORT.md`
+> **آخر تحديث:** 2026-11-08 — v1.1.0  
+> **قاعدة:** `شغال` = إثبات بتشغيل/اختبار. التفاصيل: `TEST_REPORT.md` · `SIMULATION_REPORT_V2.md`
 
 **Stack:** Next.js 14 · Express · Prisma/SQLite · Electron
 
@@ -12,6 +12,8 @@
 | المجال | الحالة |
 |--------|--------|
 | مبيعات (إنشاء/تأكيد/مرتجع/خصم/ضريبة/آجل) | شغال |
+| تعديل سعر فاتورة + canEditPrice + أقل من التكلفة | شغال |
+| VAT on/off + inclusive/exclusive + taxExempt | شغال |
 | مخزون + منع السالب + concurrency | شغال |
 | RBAC API | شغال |
 | Restore فوري / Backup تلقائي / وردية | شغال |

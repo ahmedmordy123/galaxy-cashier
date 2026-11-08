@@ -62,11 +62,31 @@ export async function updateInvoice(req: Request, res: Response) {
     }
     const expectedUpdatedAt =
       typeof req.body?.updatedAt === 'string' ? req.body.updatedAt : undefined
-    const invoice = await updateSalesInvoice(req.params.id, parsed.data, req.user!.id, expectedUpdatedAt)
+    const invoice = await updateSalesInvoice(
+      req.params.id,
+      parsed.data,
+      req.user!.id,
+      expectedUpdatedAt,
+      req.user!,
+    )
     res.json({ success: true, data: invoice })
   } catch (error: unknown) {
     if (sendCreditIfAny(res, error)) return
     const msg = error instanceof Error ? error.message : 'Failed to update invoice'
+    const status = (error as { statusCode?: number })?.statusCode
+    if (msg === 'PRICE_OVERRIDE_FORBIDDEN') {
+      return res.status(403).json({ success: false, error: 'غير مسموح بتعديل سعر البيع', code: msg })
+    }
+    if (msg === 'BELOW_COST_BLOCKED') {
+      return res.status(400).json({ success: false, error: 'البيع بأقل من التكلفة ممنوع حسب الإعدادات', code: msg })
+    }
+    if (msg === 'BELOW_COST_CONFIRM_REQUIRED') {
+      return res.status(400).json({
+        success: false,
+        error: 'البيع بأقل من التكلفة يحتاج تأكيد',
+        code: msg,
+      })
+    }
     if (msg === 'INVOICE_NOT_FOUND') {
       return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' })
     }
@@ -82,7 +102,7 @@ export async function updateInvoice(req: Request, res: Response) {
         error: 'الفاتورة اتعدّلت من جهاز تاني — حمّلها من جديد',
       })
     }
-    res.status(500).json({ success: false, error: msg })
+    res.status(status && status >= 400 && status < 600 ? status : 500).json({ success: false, error: msg })
   }
 }
 
@@ -96,15 +116,29 @@ export async function createInvoice(req: Request, res: Response) {
         details: parsed.error.flatten().fieldErrors,
       })
     }
-    const invoice = await createSalesInvoice(parsed.data, req.user!.id)
+    const invoice = await createSalesInvoice(parsed.data, req.user!.id, req.user!)
     res.status(201).json({ success: true, data: invoice })
   } catch (error: unknown) {
     if (sendCreditIfAny(res, error)) return
     const msg = error instanceof Error ? error.message : 'Failed to create invoice'
+    const status = (error as { statusCode?: number })?.statusCode
+    if (msg === 'PRICE_OVERRIDE_FORBIDDEN') {
+      return res.status(403).json({ success: false, error: 'غير مسموح بتعديل سعر البيع', code: msg })
+    }
+    if (msg === 'BELOW_COST_BLOCKED') {
+      return res.status(400).json({ success: false, error: 'البيع بأقل من التكلفة ممنوع حسب الإعدادات', code: msg })
+    }
+    if (msg === 'BELOW_COST_CONFIRM_REQUIRED') {
+      return res.status(400).json({
+        success: false,
+        error: 'البيع بأقل من التكلفة يحتاج تأكيد',
+        code: msg,
+      })
+    }
     if (msg === 'CREDIT_REQUIRES_CUSTOMER') {
       return res.status(400).json({ success: false, error: 'الفاتورة الآجلة تتطلب تحديد عميل' })
     }
-    res.status(500).json({ success: false, error: msg })
+    res.status(status && status >= 400 && status < 600 ? status : 500).json({ success: false, error: msg })
   }
 }
 

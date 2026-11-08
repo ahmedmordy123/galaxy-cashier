@@ -22,6 +22,9 @@ export default function SettingsPage() {
   const [defaultCurrency] = useState('EGP')
   const [defaultPriceType, setDefaultPriceType] = useState('RETAIL')
   const [taxRate, setTaxRate] = useState('0')
+  const [vatEnabled, setVatEnabled] = useState(true)
+  const [taxMode, setTaxMode] = useState<'INCLUSIVE' | 'EXCLUSIVE'>('INCLUSIVE')
+  const [belowCostPolicy, setBelowCostPolicy] = useState<'BLOCK' | 'WARN'>('WARN')
   const [minimumStockAlert, setMinimumStockAlert] = useState('true')
   const [businessAddress, setBusinessAddress] = useState('')
   const [businessPhone, setBusinessPhone] = useState('')
@@ -83,6 +86,9 @@ export default function SettingsPage() {
       setBusinessNameEn(data.business_name_en ?? '')
       setDefaultPriceType(data.default_price_type ?? 'RETAIL')
       setTaxRate(data.tax_rate ?? '0')
+      setVatEnabled(data.vat_enabled !== 'false')
+      setTaxMode(data.tax_mode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE')
+      setBelowCostPolicy(data.below_cost_policy === 'BLOCK' ? 'BLOCK' : 'WARN')
       setMinimumStockAlert(data.minimum_stock_alert ?? 'true')
       setBusinessAddress(data.business_address ?? '')
       setBusinessPhone(data.business_phone ?? '')
@@ -128,6 +134,9 @@ export default function SettingsPage() {
       // Allow 0% tax — do not coerce 0 to 14
       const taxNum = Number(taxRate)
       payload.tax_rate = String(Number.isFinite(taxNum) ? taxNum : 14)
+      payload.vat_enabled = vatEnabled ? 'true' : 'false'
+      payload.tax_mode = taxMode
+      payload.below_cost_policy = belowCostPolicy
       payload.minimum_stock_alert = minimumStockAlert
       payload.business_address = businessAddress
       payload.business_phone = businessPhone
@@ -510,21 +519,56 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Tax rate */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  نسبة الضريبة (%)
+              <div className="md:col-span-2 rounded-lg border border-gray-200 dark:border-gray-600 p-3 space-y-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-white">
+                  <input
+                    type="checkbox"
+                    checked={vatEnabled}
+                    onChange={(e) => setVatEnabled(e.target.checked)}
+                  />
+                  تفعيل ضريبة القيمة المضافة على الفواتير الجديدة
                 </label>
-                <input
-                  type="number"
-                  value={taxRate}
-                  onChange={(e) => setTaxRate(e.target.value)}
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  placeholder="0"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">نسبة الضريبة (%)</label>
+                    <input
+                      type="number"
+                      value={taxRate}
+                      onChange={(e) => setTaxRate(e.target.value)}
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      disabled={!vatEnabled}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">نوع الحساب</label>
+                    <select
+                      value={taxMode}
+                      onChange={(e) => setTaxMode(e.target.value as 'INCLUSIVE' | 'EXCLUSIVE')}
+                      disabled={!vatEnabled}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 disabled:opacity-50"
+                    >
+                      <option value="INCLUSIVE">شاملة (مستخرجة من السعر)</option>
+                      <option value="EXCLUSIVE">مضافة (تُحسب فوق الصافي)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">بيع بأقل من التكلفة</label>
+                    <select
+                      value={belowCostPolicy}
+                      onChange={(e) => setBelowCostPolicy(e.target.value as 'BLOCK' | 'WARN')}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    >
+                      <option value="WARN">تحذير + تأكيد</option>
+                      <option value="BLOCK">منع تمامًا</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  الفواتير القديمة تحتفظ بلقطة الضريبة وقت إنشائها. تغيير الإعداد يُسجَّل في سجل المراجعة.
+                </p>
               </div>
 
               {/* Minimum stock alert toggle */}
@@ -636,6 +680,12 @@ export default function SettingsPage() {
             <p className="text-sm text-gray-500">
               افتراضياً معطّل — لا يؤثر على البيع. فعّله بعد تسجيل النشاط والحصول على بيانات OAuth.
             </p>
+            {!vatEnabled && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm px-3 py-2">
+                ضريبة القيمة المضافة معطّلة حالياً في إعدادات العمل. إرسال ETA يبقى ممكناً للمستندات
+                بدون ضريبة، لكن راجع مطابقة النشاط الضريبي قبل التفعيل.
+              </div>
+            )}
             {etaQueue && (
               <p className="text-xs text-gray-500">
                 في الطابور: {etaQueue.pendingCount} معلّق · {etaQueue.retryCount} إعادة محاولة

@@ -1,7 +1,22 @@
 # TEST_REPORT — Galaxy Cashier (CASR) — الحالة النهائية
 
-**آخر تحديث:** 2026-11-08 (المرحلة 4)  
+**آخر تحديث:** 2026-11-08 (v1.1.0)  
 **القاعدة:** لا يُعلَّم شيء «شغال» بدون تشغيل/اختبار فعلي.
+
+---
+
+## v1.1.0 — سعر الفاتورة + VAT
+
+| الاختبار | النتيجة |
+|----------|---------|
+| Golden G0 exclusive math | **15/15** `qa-golden-vat-exclusive-math` |
+| Golden accounting G1–G4 + profit net-of-tax | **23/23** `qa-golden-accounting` |
+| tsc API + web | **0** |
+| eslint API + web | **0** |
+| `electron:build` → Setup 1.1.0 | PASS |
+| محاكاة عميل V2 (win-unpacked + 10 أيام) | **23/23** `SIMULATION_REPORT_V2.md` |
+
+التوزيع: `Galaxy-Cashier-Distribution-v1.1.0\`
 
 ---
 
@@ -10,10 +25,10 @@
 | القناة | المعنى |
 |--------|--------|
 | **DEV/API** | سكربتات Node ضد API معزول |
-| **EXE / Setup** | `win-unpacked` + تثبيت `Galaxy Cashier Setup 1.0.0.exe` من التوزيع |
-| **PORTABLE** | `Galaxy Cashier 1.0.0.exe` من مجلد TEMP |
+| **EXE / Setup** | `win-unpacked` + تثبيت `Galaxy Cashier Setup 1.1.0.exe` من التوزيع |
+| **PORTABLE** | `Galaxy Cashier 1.1.0.exe` |
 
-التوزيع النهائي: `Galaxy-Cashier-Distribution-v1.0.0\`
+التوزيع السابق: `Galaxy-Cashier-Distribution-v1.0.0\`
 
 ---
 

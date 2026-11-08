@@ -67,18 +67,30 @@ export async function validateCredentials(username: string, password: string): P
     return null
   }
   await clearLoginFailures(user.id)
+  const canEditPrice =
+    Boolean((user as { canEditPrice?: boolean }).canEditPrice) ||
+    user.role === 'ADMIN' ||
+    user.role === 'MANAGER'
   return {
     id: user.id,
     username: user.username,
     name: user.name,
     role: user.role as AuthUser['role'],
     language: user.language as AuthUser['language'],
+    canEditPrice,
   }
 }
 
 export function generateAccessToken(user: AuthUser): string {
   return jwt.sign(
-    { sub: user.id, role: user.role, username: user.username, name: user.name, language: user.language },
+    {
+      sub: user.id,
+      role: user.role,
+      username: user.username,
+      name: user.name,
+      language: user.language,
+      canEditPrice: Boolean(user.canEditPrice),
+    },
     process.env.JWT_SECRET!,
     { expiresIn: '15m' },
   )
@@ -99,11 +111,16 @@ export function verifyRefreshToken(token: string): { sub: string } | null {
 export async function getUserById(id: string): Promise<AuthUser | null> {
   const user = await prisma.user.findFirst({ where: { id, isActive: true } })
   if (!user) return null
+  const canEditPrice =
+    Boolean((user as { canEditPrice?: boolean }).canEditPrice) ||
+    user.role === 'ADMIN' ||
+    user.role === 'MANAGER'
   return {
     id: user.id,
     username: user.username,
     name: user.name,
     role: user.role as AuthUser['role'],
     language: user.language as AuthUser['language'],
+    canEditPrice,
   }
 }

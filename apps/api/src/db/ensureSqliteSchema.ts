@@ -141,6 +141,77 @@ async function applySqlitePatches(prisma: PrismaClient): Promise<void> {
     logger.info('[db] Added PurchaseInvoice.supplierRef')
   }
 
+  // ── v1.1 price override + VAT snapshot columns ─────────────────────────────
+  if (await hasTable(prisma, 'User') && !(await hasColumn(prisma, 'User', 'canEditPrice'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN "canEditPrice" BOOLEAN NOT NULL DEFAULT 0;`)
+    // Admins/managers get the permission by default on existing DBs
+    await prisma.$executeRawUnsafe(
+      `UPDATE "User" SET "canEditPrice"=1 WHERE "role" IN ('ADMIN','MANAGER')`,
+    )
+    logger.info('[db] Added User.canEditPrice')
+  }
+  if (await hasTable(prisma, 'Item') && !(await hasColumn(prisma, 'Item', 'taxExempt'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Item" ADD COLUMN "taxExempt" BOOLEAN NOT NULL DEFAULT 0;`)
+    logger.info('[db] Added Item.taxExempt')
+  }
+  const invSnap: Array<[string, string]> = [
+    ['taxEnabled', 'BOOLEAN NOT NULL DEFAULT 1'],
+    ['taxMode', "TEXT NOT NULL DEFAULT 'INCLUSIVE'"],
+    ['taxRate', 'DECIMAL NOT NULL DEFAULT 0'],
+    ['netOfTax', 'DECIMAL NOT NULL DEFAULT 0'],
+    ['soldBelowCost', 'BOOLEAN NOT NULL DEFAULT 0'],
+    ['hasPriceOverride', 'BOOLEAN NOT NULL DEFAULT 0'],
+  ]
+  if (await hasTable(prisma, 'SalesInvoice')) {
+    for (const [col, ddl] of invSnap) {
+      if (!(await hasColumn(prisma, 'SalesInvoice', col))) {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "SalesInvoice" ADD COLUMN "${col}" ${ddl};`)
+        logger.info(`[db] Added SalesInvoice.${col}`)
+      }
+    }
+  }
+  const lineSnap: Array<[string, string]> = [
+    ['originalUnitPrice', 'DECIMAL NOT NULL DEFAULT 0'],
+    ['priceOverridden', 'BOOLEAN NOT NULL DEFAULT 0'],
+    ['taxExempt', 'BOOLEAN NOT NULL DEFAULT 0'],
+  ]
+  if (await hasTable(prisma, 'SalesInvoiceItem')) {
+    for (const [col, ddl] of lineSnap) {
+      if (!(await hasColumn(prisma, 'SalesInvoiceItem', col))) {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "SalesInvoiceItem" ADD COLUMN "${col}" ${ddl};`)
+        logger.info(`[db] Added SalesInvoiceItem.${col}`)
+      }
+    }
+    // Backfill originalUnitPrice from unitPrice where still 0
+    await prisma.$executeRawUnsafe(
+      `UPDATE "SalesInvoiceItem" SET "originalUnitPrice"="unitPrice" WHERE "originalUnitPrice"=0 AND "unitPrice"<>0`,
+    )
+  }
+
+  // Default settings keys (upsert-like via insert if missing)
+  const defaultSettings: Array<[string, string]> = [
+    ['vat_enabled', 'true'],
+    ['tax_mode', 'INCLUSIVE'],
+    ['below_cost_policy', 'WARN'],
+  ]
+  if (await hasTable(prisma, 'Settings')) {
+    for (const [key, value] of defaultSettings) {
+      const rows = await prisma.$queryRawUnsafe<Array<{ key: string }>>(
+        `SELECT "key" FROM "Settings" WHERE "key"=?`,
+        key,
+      )
+      if (rows.length === 0) {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "Settings" ("id","key","value","updatedAt") VALUES (?,?,?,CURRENT_TIMESTAMP)`,
+          `set-${key}`,
+          key,
+          value,
+        )
+        logger.info(`[db] Seeded setting ${key}=${value}`)
+      }
+    }
+  }
+
   const etaCols: Array<[string, string]> = [
     ['documentType', 'TEXT DEFAULT \'RECEIPT\''],
     ['retryCount', 'INTEGER DEFAULT 0'],

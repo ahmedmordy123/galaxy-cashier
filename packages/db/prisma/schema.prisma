@@ -15,6 +15,8 @@ model User {
   role         String   @default("CASHIER")
   language     String   @default("ar")
   isActive     Boolean  @default(true)
+  /// Permission: allow per-invoice unit price override at POS
+  canEditPrice Boolean  @default(false)
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   createdAt    DateTime @default(now())
@@ -110,6 +112,8 @@ model Item {
   color          String?
   trackSerial    Boolean   @default(false)
   warrantyMonths Int       @default(0)
+  /// When true, line is excluded from VAT even if store VAT is on
+  taxExempt      Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -190,6 +194,18 @@ model SalesInvoice {
   balance       Decimal  @default(0)
   notes         String?
   createdById   String
+  /// Snapshot: VAT enabled when invoice was created
+  taxEnabled    Boolean  @default(true)
+  /// Snapshot: INCLUSIVE | EXCLUSIVE
+  taxMode       String   @default("INCLUSIVE")
+  /// Snapshot: rate percent at creation (e.g. 14)
+  taxRate       Decimal  @default(0)
+  /// Net of tax (after discount, before/excluding VAT depending on mode)
+  netOfTax      Decimal  @default(0)
+  /// True if any line sold below unitCost
+  soldBelowCost Boolean  @default(false)
+  /// True if any line had price override vs originalUnitPrice
+  hasPriceOverride Boolean @default(false)
   /// DRAFT | PARKED | CONFIRMED | CANCELLED | RETURNED | QUOTE
   status        String   @default("DRAFT")
   isActive      Boolean  @default(true)
@@ -218,10 +234,16 @@ model SalesInvoiceItem {
   invoiceId    String
   itemId       String
   quantity     Decimal
+  /// Catalog / list price snapshot at sale (before override)
+  originalUnitPrice Decimal @default(0)
+  /// Actual unit price sold on this invoice
   unitPrice    Decimal
+  /// Cost snapshot at sale — profit uses this, never live item.costPrice
   unitCost     Decimal   @default(0)
   currency     String    @default("EGP")
   subtotal     Decimal
+  priceOverridden Boolean @default(false)
+  taxExempt    Boolean   @default(false)
   expiryDate   DateTime?
   serialNumber String?
 
@@ -231,6 +253,7 @@ model SalesInvoiceItem {
 
   @@index([invoiceId])
   @@index([itemId])
+  @@index([priceOverridden])
 }
 
 model SalesPayment {
