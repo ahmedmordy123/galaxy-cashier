@@ -1,0 +1,58 @@
+{
+  "at": "2026-11-08T17:35:03.188Z",
+  "lockFile": "C:\\ProgramData\\GalaxyCashier\\data\\.machine-instance.lock",
+  "passed": 10,
+  "total": 10,
+  "results": [
+    {
+      "name": "lock file cleared before test",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\.machine-instance.lock"
+    },
+    {
+      "name": "session A acquired machine lock",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "session B blocked while A holds lock",
+      "ok": true,
+      "detail": "status=3 out=HOLD_FAIL_EXISTS"
+    },
+    {
+      "name": "session A released lock after hold",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\.machine-instance.lock"
+    },
+    {
+      "name": "session B acquires after A released",
+      "ok": true,
+      "detail": "HOLD_OK 9412"
+    },
+    {
+      "name": "stale lock (dead PID) can be replaced",
+      "ok": true,
+      "detail": "HOLD_OK 32728"
+    },
+    {
+      "name": "main.js has acquireMachineInstanceLock",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "main.js skips lock for Portable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "main.js exits when lock denied",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "main.js uses exclusive wx lock file",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

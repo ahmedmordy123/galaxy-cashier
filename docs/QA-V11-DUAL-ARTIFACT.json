@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-08T14:32:04.001Z",
+  "at": "2026-11-08T17:34:47.866Z",
   "honesty": {
     "setupInstaller": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier Setup 1.1.0.exe",
     "portable": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe",
@@ -39,31 +39,6 @@
       "detail": "Galaxy Cashier Setup 1.1.0.exe / Galaxy Cashier 1.1.0.exe"
     },
     {
-      "name": "Portable-1.1.0 file exists",
-      "ok": true,
-      "detail": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe"
-    },
-    {
-      "name": "Portable-1.1.0 size > 50MB",
-      "ok": true,
-      "detail": "228 MB"
-    },
-    {
-      "name": "Portable-1.1.0 /health",
-      "ok": true,
-      "detail": "23304ms"
-    },
-    {
-      "name": "Portable-1.1.0 login",
-      "ok": true,
-      "detail": "200"
-    },
-    {
-      "name": "Portable-1.1.0 has vat settings keys",
-      "ok": true,
-      "detail": "vat_enabled=true tax_mode=EXCLUSIVE"
-    },
-    {
       "name": "Setup-payload-win-unpacked-1.1.0 file exists",
       "ok": true,
       "detail": "E:\\CASR\\apps\\desktop\\dist\\win-unpacked\\Galaxy Cashier.exe"
@@ -76,7 +51,7 @@
     {
       "name": "Setup-payload-win-unpacked-1.1.0 /health",
       "ok": true,
-      "detail": "2019ms"
+      "detail": "12156ms"
     },
     {
       "name": "Setup-payload-win-unpacked-1.1.0 login",
@@ -85,6 +60,31 @@
     },
     {
       "name": "Setup-payload-win-unpacked-1.1.0 has vat settings keys",
+      "ok": true,
+      "detail": "vat_enabled=true tax_mode=INCLUSIVE"
+    },
+    {
+      "name": "Portable-1.1.0 file exists",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier 1.1.0.exe"
+    },
+    {
+      "name": "Portable-1.1.0 size > 50MB",
+      "ok": true,
+      "detail": "228 MB"
+    },
+    {
+      "name": "Portable-1.1.0 /health",
+      "ok": true,
+      "detail": "24273ms"
+    },
+    {
+      "name": "Portable-1.1.0 login",
+      "ok": true,
+      "detail": "200"
+    },
+    {
+      "name": "Portable-1.1.0 has vat settings keys",
       "ok": true,
       "detail": "vat_enabled=true tax_mode=EXCLUSIVE"
     }

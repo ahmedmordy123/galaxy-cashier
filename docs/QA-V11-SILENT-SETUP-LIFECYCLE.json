@@ -1,0 +1,113 @@
+{
+  "at": "2026-11-08T16:40:26.992Z",
+  "elevated": true,
+  "setup": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier Setup 1.1.0.exe",
+  "installDir": "C:\\Program Files\\Galaxy Cashier",
+  "uninstaller": "C:\\Program Files\\Galaxy Cashier\\Uninstall Galaxy Cashier.exe",
+  "liveToken": "LIVE-1794156019535",
+  "bakToken": "BAK-1794156019535",
+  "passed": 20,
+  "total": 20,
+  "results": [
+    {
+      "name": "running elevated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Setup exe exists",
+      "ok": true,
+      "detail": "E:\\CASR\\apps\\desktop\\dist\\Galaxy Cashier Setup 1.1.0.exe"
+    },
+    {
+      "name": "installer.nsh runs icacls in customInstall",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "installer.nsh grants Users:(OI)(CI)M",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "installer.nsh uses /T propagate",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "silent Setup /S exit 0",
+      "ok": true,
+      "detail": "status=0 "
+    },
+    {
+      "name": "installer created .setup-prepared",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\.setup-prepared"
+    },
+    {
+      "name": "ACL after install: Users Modify (from installer)",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier BUILTIN\\Users:(OI)(CI)(M) |                              BUILTIN\\Administrators:(OI)(CI)(F) |                              NT AUTHORITY\\SYSTEM:(OI)(CI)(F) |  | Successfully processed 1 files; Failed processing 0 files | "
+    },
+    {
+      "name": "ACL after install: SYSTEM Full (from installer)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "install dir present",
+      "ok": true,
+      "detail": "C:\\Program Files\\Galaxy Cashier"
+    },
+    {
+      "name": "Galaxy Cashier.exe installed",
+      "ok": true,
+      "detail": "C:\\Program Files\\Galaxy Cashier"
+    },
+    {
+      "name": "standard Windows user can write ProgramData\\data after Setup",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\qa-preserve-data-1794156019535.txt"
+    },
+    {
+      "name": "standard Windows user can write ProgramData\\backups after Setup",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\backups\\qa-preserve-bak-1794156019535.txt"
+    },
+    {
+      "name": "uninstaller found",
+      "ok": true,
+      "detail": "C:\\Program Files\\Galaxy Cashier\\Uninstall Galaxy Cashier.exe"
+    },
+    {
+      "name": "silent uninstall /S exit 0",
+      "ok": true,
+      "detail": "status=0"
+    },
+    {
+      "name": "install dir removed (or exe gone)",
+      "ok": true,
+      "detail": "C:\\Program Files\\Galaxy Cashier"
+    },
+    {
+      "name": "after uninstall: live data preserved",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\qa-preserve-data-1794156019535.txt LIVE-1794156019535"
+    },
+    {
+      "name": "after uninstall: backups preserved",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\backups\\qa-preserve-bak-1794156019535.txt BAK-1794156019535"
+    },
+    {
+      "name": "after uninstall: ProgramData root still present",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier"
+    },
+    {
+      "name": "after uninstall: .setup-prepared still present",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\.setup-prepared"
+    }
+  ]
+}

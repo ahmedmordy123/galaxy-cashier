@@ -21,7 +21,12 @@ if (process.platform === 'win32') {
 // Prisma's SQLite driver cannot handle non-ASCII characters in file paths on
 // Windows, so we force a plain ASCII path before anything else runs.
 if (!IS_DEV) {
-  app.setPath('userData', path.join(app.getPath('appData'), 'CASR'))
+  const uddArg = process.argv.find((a) => a.startsWith('--user-data-dir='))
+  if (uddArg) {
+    app.setPath('userData', uddArg.slice('--user-data-dir='.length))
+  } else {
+    app.setPath('userData', path.join(app.getPath('appData'), 'CASR'))
+  }
 }
 
 let mainWindow  = null
@@ -53,7 +58,7 @@ function navigateMainWindow(routePath) {
   mainWindow.focus()
 }
 
-// Single instance: second launch focuses existing window and navigates only.
+// Per-user Electron lock: second launch focuses existing window and navigates only.
 // Must exit BEFORE whenReady — app.quit() alone can still race into startup/spawn.
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -71,6 +76,9 @@ app.on('second-instance', (_event, argv) => {
     log(`[app] second-instance queued route=${route} (main window not ready)`)
   }
 })
+
+// Machine-wide ProgramData lock is acquired in whenReady (below) — not at module
+// load — because Electron may evaluate startup races before the real main process settles.
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 
@@ -259,10 +267,13 @@ function killAll() {
 // Uninstall never deletes ProgramData GalaxyCashier data/backups.
 
 function isPortableBuild() {
+  // electron-builder portable sets these; also unpacks under %TEMP%\<id>\Galaxy Cashier.exe
   if (process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE) return true
-  const res = process.resourcesPath || ''
+  if (!app.isPackaged) return false
   const exe = process.execPath || ''
-  return /\\Temp\\/i.test(res) || /\\Temp\\/i.test(exe)
+  // Match Temp unpack only on the executable path (not resourcesPath / unrelated Temp strings)
+  return /\\Temp\\[^\\]+\\Galaxy Cashier\.exe$/i.test(exe) ||
+    /\\AppData\\Local\\Temp\\[^\\]+\\Galaxy Cashier\.exe$/i.test(exe)
 }
 
 function programDataGalaxyRoot() {
@@ -310,15 +321,168 @@ function isOneDrivePath(p) {
 /** Ensure ProgramData GalaxyCashier ACL (Users Modify) — best-effort if Setup already did it. */
 function ensureProgramDataAcl(root) {
   try {
-    fs.mkdirSync(path.join(root, 'data'), { recursive: true })
-    fs.mkdirSync(path.join(root, 'backups'), { recursive: true })
+    const data = path.join(root, 'data')
+    const backups = path.join(root, 'backups')
+    fs.mkdirSync(data, { recursive: true })
+    fs.mkdirSync(backups, { recursive: true })
     execSync(
-      `icacls "${root}" /inheritance:r /grant:r "NT AUTHORITY\\SYSTEM:(OI)(CI)F" /grant:r "BUILTIN\\Administrators:(OI)(CI)F" /grant:r "BUILTIN\\Users:(OI)(CI)M"`,
+      `icacls "${root}" /inheritance:r /grant:r "NT AUTHORITY\\SYSTEM:(OI)(CI)F" /grant:r "BUILTIN\\Administrators:(OI)(CI)F" /grant:r "BUILTIN\\Users:(OI)(CI)M" /T`,
       { windowsHide: true, stdio: 'ignore' },
     )
+    // Explicit file grants — empty DACLs on cashier.db/-wal/-shm block other Windows users
+    for (const name of ['cashier.db', 'cashier.db-wal', 'cashier.db-shm']) {
+      const f = path.join(data, name)
+      if (!fs.existsSync(f)) continue
+      try {
+        execSync(
+          `icacls "${f}" /grant:r "NT AUTHORITY\\SYSTEM:F" /grant:r "BUILTIN\\Administrators:F" /grant:r "BUILTIN\\Users:M"`,
+          { windowsHide: true, stdio: 'ignore' },
+        )
+      } catch {
+        /* */
+      }
+    }
+    // Orphan -wal/-shm with Access Denied → SQLite error 14 even when .db itself opens
+    clearUnwritableWalSidecars(path.join(data, 'cashier.db'))
   } catch (e) {
     log(`[db] ensureProgramDataAcl: ${e.message}`)
   }
+}
+
+function clearUnwritableWalSidecars(dbFile) {
+  for (const suffix of ['-wal', '-shm']) {
+    const f = dbFile + suffix
+    if (!fs.existsSync(f)) continue
+    let writable = true
+    try {
+      fs.accessSync(f, fs.constants.W_OK)
+    } catch {
+      writable = false
+    }
+    if (writable) continue
+    try {
+      execSync(
+        `icacls "${f}" /grant:r "NT AUTHORITY\\SYSTEM:F" /grant:r "BUILTIN\\Administrators:F" /grant:r "BUILTIN\\Users:M"`,
+        { windowsHide: true, stdio: 'ignore' },
+      )
+      fs.accessSync(f, fs.constants.W_OK)
+      writable = true
+    } catch {
+      writable = false
+    }
+    if (writable) continue
+    try {
+      fs.unlinkSync(f)
+      log(`[db] removed unwritable sidecar ${path.basename(f)} (prevents SQLite code 14)`)
+    } catch (e) {
+      log(`[db] cannot remove unwritable ${path.basename(f)}: ${e.message}`)
+    }
+  }
+}
+
+/**
+ * Machine-wide single-instance lock for Setup (shared ProgramData DB).
+ * Electron requestSingleInstanceLock is per Windows session/user — two accounts
+ * could otherwise open the same SQLite file concurrently.
+ * Portable (per-user LocalAppData) skips this.
+ */
+function isPidAlive(pid) {
+  const n = Number(pid)
+  if (!Number.isFinite(n) || n <= 0) return false
+  try {
+    process.kill(n, 0)
+    return true
+  } catch (e) {
+    return e && e.code === 'EPERM'
+  }
+}
+
+let machineLockFd = null
+let machineLockFile = null
+
+function releaseMachineInstanceLock() {
+  if (machineLockFd != null) {
+    try {
+      fs.closeSync(machineLockFd)
+    } catch {
+      /* */
+    }
+    machineLockFd = null
+  }
+  if (machineLockFile) {
+    try {
+      fs.unlinkSync(machineLockFile)
+    } catch {
+      /* */
+    }
+    machineLockFile = null
+  }
+  // Legacy dir locks from earlier builds
+  for (const legacy of [
+    path.join(programDataLiveDataDir(), '.instance-lock'),
+    path.join(programDataGalaxyRoot(), '.instance-lock'),
+  ]) {
+    try {
+      fs.rmSync(legacy, { recursive: true, force: true })
+    } catch {
+      /* */
+    }
+  }
+}
+
+function acquireMachineInstanceLock() {
+  if (isPortableBuild()) {
+    return { ok: true, skipped: 'portable' }
+  }
+  const dataDir = programDataLiveDataDir()
+  try {
+    fs.mkdirSync(dataDir, { recursive: true })
+  } catch (e) {
+    return { ok: false, error: `mkdir data: ${e.message}` }
+  }
+  const lockFile = path.join(dataDir, '.machine-instance.lock')
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const fd = fs.openSync(lockFile, 'wx') // exclusive create — fails if exists
+      const owner = {
+        pid: process.pid,
+        user: process.env.USERNAME || process.env.USER || '',
+        at: new Date().toISOString(),
+        lockFile,
+      }
+      fs.writeFileSync(fd, JSON.stringify(owner, null, 2), 'utf8')
+      machineLockFd = fd
+      machineLockFile = lockFile
+      return { ok: true, owner }
+    } catch (e) {
+      if (!e || e.code !== 'EEXIST') {
+        return { ok: false, error: e.message || String(e) }
+      }
+      let meta = null
+      try {
+        meta = JSON.parse(fs.readFileSync(lockFile, 'utf8'))
+      } catch {
+        meta = null
+      }
+      if (meta && meta.pid === process.pid) {
+        return { ok: true, owner: meta, reentrant: true }
+      }
+      if (meta && isPidAlive(meta.pid)) {
+        return { ok: false, owner: meta }
+      }
+      try {
+        fs.unlinkSync(lockFile)
+      } catch (rmErr) {
+        return {
+          ok: false,
+          owner: meta,
+          error: `stale lock unlink failed: ${rmErr.message}`,
+        }
+      }
+    }
+  }
+  return { ok: false, error: 'could not acquire machine instance lock' }
 }
 
 function initDatabase(res) {
@@ -963,6 +1127,43 @@ if (gotLock) {
   app.whenReady().then(async () => {
     pendingRoute = parseLaunchRoute(process.argv)
     log(`[app] launch route: ${pendingRoute}`)
+
+    // Machine-wide lock for Setup/ProgramData (blocks two Windows accounts on same DB).
+    const machineLockResult = acquireMachineInstanceLock()
+    if (!machineLockResult.ok) {
+      const owner = machineLockResult.owner || {}
+      log(
+        `[app] machine-instance-lock denied: ${JSON.stringify({
+          owner,
+          error: machineLockResult.error || null,
+        })}`,
+      )
+      const detail =
+        `Galaxy Cashier يعمل بالفعل على هذا الجهاز` +
+        (owner.user ? ` (المستخدم: ${owner.user}` : '') +
+        (owner.pid ? `, PID ${owner.pid}` : '') +
+        (owner.user || owner.pid ? ')' : '') +
+        `.\n\nلا يمكن فتح نسختين على نفس قاعدة ProgramData في نفس الوقت.`
+      const headless =
+        process.env.CASR_SMOKE === '1' ||
+        process.env.CI === 'true' ||
+        process.env.CASR_HEADLESS === '1'
+      if (!headless) {
+        try {
+          dialog.showErrorBox('Galaxy Cashier — قيد التشغيل', detail)
+        } catch {
+          /* */
+        }
+      }
+      app.exit(2)
+      return
+    }
+    if (machineLockResult.skipped) {
+      log(`[app] machine-instance-lock skipped: ${machineLockResult.skipped}`)
+    } else {
+      log(`[app] machine-instance-lock acquired pid=${process.pid}`)
+    }
+
     createSplash()
 
     try {
@@ -1151,5 +1352,6 @@ app.on('before-quit', (e) => {
 })
 
 app.on('will-quit', () => {
+  releaseMachineInstanceLock()
   killAll()
 })

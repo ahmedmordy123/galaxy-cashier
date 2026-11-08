@@ -10,6 +10,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
 const { spawn, execSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -37,7 +38,7 @@ function killGalaxy() {
     'Galaxy Cashier Setup 1.1.0.exe',
   ]) {
     try {
-      execSync(`taskkill /IM "${im}" /F`, { stdio: 'ignore' })
+      execSync(`taskkill /IM "${im}" /F /T`, { stdio: 'ignore' })
     } catch {
       /* */
     }
@@ -61,6 +62,21 @@ function killGalaxy() {
           }
         }
       }
+    } catch {
+      /* */
+    }
+  }
+  // Clear machine-wide ProgramData instance locks so the next artifact can start
+  const pd = path.join(process.env.ProgramData || 'C:\\ProgramData', 'GalaxyCashier')
+  for (const p of [
+    path.join(pd, 'data', '.machine-instance.lock'),
+    path.join(pd, 'data', '.instance-lock'),
+    path.join(pd, '.instance-lock'),
+    path.join(pd, 'data', 'cashier.db-wal'),
+    path.join(pd, 'data', 'cashier.db-shm'),
+  ]) {
+    try {
+      fs.rmSync(p, { recursive: true, force: true })
     } catch {
       /* */
     }
@@ -89,17 +105,33 @@ async function waitHealth(sec = 120) {
   return { ok: false, ms: Date.now() - t0 }
 }
 
-async function smokeExe(label, exePath) {
+async function smokeExe(label, exePath, extraArgs = []) {
   killGalaxy()
-  await sleep(1000)
+  await sleep(3000)
   check(`${label} file exists`, fs.existsSync(exePath), exePath)
   if (!fs.existsSync(exePath)) return
   const sizeMb = Math.round(fs.statSync(exePath).size / 1024 / 1024)
   check(`${label} size > 50MB`, sizeMb >= 50, `${sizeMb} MB`)
-  spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
+  // Unique user-data-dir avoids Electron per-user single-instance mutex colliding across artifacts
+  const udd = path.join(os.tmpdir(), `casr-smoke-${label.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}`)
+  fs.mkdirSync(udd, { recursive: true })
+  const childEnv = { ...process.env, CASR_SMOKE: '1' }
+  // Prevent Portable env leakage from marking win-unpacked as portable
+  delete childEnv.PORTABLE_EXECUTABLE_DIR
+  delete childEnv.PORTABLE_EXECUTABLE_FILE
+  delete childEnv.PORTABLE_EXECUTABLE_APP_FILENAME
+  spawn(exePath, [`--user-data-dir=${udd}`, ...extraArgs], {
+    detached: true,
+    stdio: 'ignore',
+    env: childEnv,
+  }).unref()
   const h = await waitHealth(150)
   check(`${label} /health`, h.ok, `${h.ms}ms`)
-  if (!h.ok) return
+  if (!h.ok) {
+    killGalaxy()
+    await sleep(2000)
+    return
+  }
   const login = await fetch(`${API}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -119,7 +151,6 @@ async function smokeExe(label, exePath) {
       'vat_enabled' in keys || 'tax_mode' in keys || 'tax_rate' in keys,
       `vat_enabled=${keys.vat_enabled} tax_mode=${keys.tax_mode}`,
     )
-    // quick exclusive create/confirm/delete path
     await fetch(`${API}/api/settings`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -127,7 +158,7 @@ async function smokeExe(label, exePath) {
     })
   }
   killGalaxy()
-  await sleep(1500)
+  await sleep(3000)
 }
 
 async function main() {
@@ -149,10 +180,10 @@ async function main() {
       `${path.basename(SETUP)} / ${path.basename(PORTABLE)}`,
     )
 
-    // 1) Portable smoke (first launch may unpack — allow long health wait)
-    await smokeExe('Portable-1.1.0', PORTABLE)
-    // 2) Setup payload (win-unpacked) — identical tree NSIS installs
+    // 1) Setup payload first (machine ProgramData lock + absolute DB URL)
     await smokeExe('Setup-payload-win-unpacked-1.1.0', UNPACKED)
+    // 2) Portable (may unpack under Temp — allow long health wait)
+    await smokeExe('Portable-1.1.0', PORTABLE)
   } catch (e) {
     check('smoke runner exception', false, e instanceof Error ? e.message : String(e))
     console.error(e)

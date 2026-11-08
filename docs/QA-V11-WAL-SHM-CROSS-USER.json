@@ -1,0 +1,67 @@
+{
+  "at": "2026-11-08T16:37:55.968Z",
+  "elevated": true,
+  "testUser": "GalaxyCashierTest",
+  "walExists": true,
+  "shmExists": true,
+  "bakName": "cashier-backup-2026-11-08T16-37-50.db",
+  "passed": 11,
+  "total": 11,
+  "results": [
+    {
+      "name": "elevated",
+      "ok": true,
+      "detail": "yes"
+    },
+    {
+      "name": "API started (account A session)",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\cashier.db"
+    },
+    {
+      "name": "login account A",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "account A produced -wal and/or -shm",
+      "ok": true,
+      "detail": "wal=true shm=true pragma=[{\"journal_mode\":\"wal\"}]"
+    },
+    {
+      "name": "account B sees Users rights on -wal (or can touch it)",
+      "ok": true,
+      "detail": "C:\\ProgramData\\GalaxyCashier\\data\\cashier.db-wal BUILTIN\\Users:(I)(M)\n                                                 BUILTIN\\Administrators:(I)(F)\n                                                 NT"
+    },
+    {
+      "name": "account A created backup file",
+      "ok": true,
+      "detail": "cashier-backup-2026-11-08T16-37-50.db"
+    },
+    {
+      "name": "account B can write data dir (wal sibling)",
+      "ok": true,
+      "detail": "EXIT=0"
+    },
+    {
+      "name": "account B can write backups dir",
+      "ok": true,
+      "detail": "EXIT=0"
+    },
+    {
+      "name": "API restart for restore",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "account B can read A backup file",
+      "ok": true,
+      "detail": "EXIT=0"
+    },
+    {
+      "name": "restore from A backup succeeds",
+      "ok": true,
+      "detail": "{\"success\":true,\"data\":{\"restoredFrom\":\"C:\\\\ProgramData\\\\GalaxyCashier\\\\backups\\\\cashier-backup-2026-11-08T16-37-50.db\",\"safetyBackup\":\"C:\\\\ProgramData\\\\GalaxyC"
+    }
+  ]
+}
