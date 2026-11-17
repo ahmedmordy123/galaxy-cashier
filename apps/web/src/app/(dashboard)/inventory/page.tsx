@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { stockService } from '@/services/stock.service'
 import api from '@/lib/api'
 import { TableSkeleton } from '@/components/ui/TableSkeleton'
@@ -62,6 +63,7 @@ function formatNum(n: number | string, decimals = 0): string {
 }
 
 export default function InventoryPage() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('all')
 
   // ── All Inventory state ────────────────────────────────────────────────────
@@ -71,6 +73,15 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('')
   const [filterCategoryId, setFilterCategoryId] = useState('')
   const [categories, setCategories] = useState<Category[]>([])
+
+  function openCountSheet(withQty: boolean) {
+    const q = new URLSearchParams()
+    if (withQty) q.set('showQty', '1')
+    if (search.trim()) q.set('search', search.trim())
+    if (filterCategoryId) q.set('categoryId', filterCategoryId)
+    const qs = q.toString()
+    router.push(`/inventory/count-sheet${qs ? `?${qs}` : ''}`)
+  }
 
   // ── Low stock state ────────────────────────────────────────────────────────
   const [lowItems, setLowItems] = useState<InventoryItem[]>([])
@@ -157,7 +168,27 @@ export default function InventoryPage() {
 
   return (
     <div dir="rtl">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">إدارة المخزون</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">إدارة المخزون</h1>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => openCountSheet(false)}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium"
+            title="ورقة بكل الأصناف وعمود كمية فارغ للعدّ الفعلي"
+          >
+            🖨️ ورقة جرد (بدون أرقام)
+          </button>
+          <button
+            type="button"
+            onClick={() => openCountSheet(true)}
+            className="px-4 py-2 border border-amber-600 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-sm font-medium"
+            title="ورقة بكل الأصناف مع كمية النظام للمطابقة"
+          >
+            🖨️ ورقة جرد (مع الكمية)
+          </button>
+        </div>
+      </div>
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">

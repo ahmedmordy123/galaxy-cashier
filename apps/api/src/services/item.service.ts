@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { CreateItemInput, UpdateItemInput } from '../validators/item.validator'
-import { ensureDefaultWarehouse, getOrCreateBalance, syncItemStockQty } from './stock-ops.service'
+import { setItemStockQty } from './stock-ops.service'
 import { notFoundError, isPlausibleId } from '../utils/apiError'
 import { prisma } from '../db/prisma'
 
@@ -96,13 +96,7 @@ export async function importItems(rows: ImportRow[]): Promise<ImportResult> {
 
       const qty = data.stockQty
       if (qty > 0) {
-        const wh = await ensureDefaultWarehouse(prisma)
-        await getOrCreateBalance(prisma, itemId, wh.id)
-        await prisma.stockBalance.update({
-          where: { itemId_warehouseId: { itemId, warehouseId: wh.id } },
-          data: { qty },
-        })
-        await syncItemStockQty(prisma, itemId)
+        await setItemStockQty(prisma, itemId, qty)
       }
     } catch (err) {
       result.errors.push(`${label}: ${err instanceof Error ? err.message : 'خطأ'}`)
@@ -239,7 +233,6 @@ export async function getItemByBarcode(barcode: string) {
 }
 
 export async function createItem(data: CreateItemInput) {
-  const wh = await ensureDefaultWarehouse(prisma)
   const item = await prisma.item.create({
     data: {
       barcode: data.barcode || generateBarcode(),
@@ -270,12 +263,7 @@ export async function createItem(data: CreateItemInput) {
   })
   const qty = Number(data.stockQty ?? 0)
   if (qty > 0) {
-    await getOrCreateBalance(prisma, item.id, wh.id)
-    await prisma.stockBalance.update({
-      where: { itemId_warehouseId: { itemId: item.id, warehouseId: wh.id } },
-      data: { qty },
-    })
-    await syncItemStockQty(prisma, item.id)
+    await setItemStockQty(prisma, item.id, qty)
   }
   return item
 }
@@ -320,7 +308,7 @@ export async function updateItem(id: string, data: UpdateItemInput) {
     ...(specialPrice !== undefined ? { specialPrice } : {}),
     ...(dollarPrice !== undefined ? { dollarPrice } : {}),
     ...(dinarPrice !== undefined ? { dinarPrice } : {}),
-    ...(stockQty !== undefined ? { stockQty } : {}),
+    // stockQty is applied via StockBalance below (sale path reads balances)
     ...(minimumStock !== undefined ? { minimumStock } : {}),
     ...(expiryDate !== undefined ? { expiryDate: expiryDate ? new Date(expiryDate) : null } : {}),
     ...(isFavorite !== undefined ? { isFavorite } : {}),
@@ -331,11 +319,21 @@ export async function updateItem(id: string, data: UpdateItemInput) {
     ...(color !== undefined ? { color } : {}),
   }
 
-  return prisma.item.update({
+  const updated = await prisma.item.update({
     where: { id },
     data: dataOut,
     include: { category: true },
   })
+
+  if (stockQty !== undefined) {
+    await setItemStockQty(prisma, id, Number(stockQty))
+    return prisma.item.findUniqueOrThrow({
+      where: { id },
+      include: { category: true },
+    })
+  }
+
+  return updated
 }
 
 export async function softDeleteItem(id: string) {

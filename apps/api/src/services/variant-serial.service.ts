@@ -1,5 +1,6 @@
 
 import { prisma } from '../db/prisma'
+import { setItemStockQty } from './stock-ops.service'
 
 export async function listSerials(itemId?: string, status?: string) {
   return prisma.itemSerial.findMany({
@@ -48,7 +49,8 @@ export async function createVariant(data: {
   })
 
   const nameSuffix = [data.size, data.color].filter(Boolean).join(' / ')
-  return prisma.item.create({
+  const qty = Number(data.stockQty ?? 0)
+  const variant = await prisma.item.create({
     data: {
       parentId: parent.id,
       itemKind: 'VARIANT',
@@ -63,9 +65,13 @@ export async function createVariant(data: {
       retailPrice: data.retailPrice ?? parent.retailPrice,
       wholesalePrice: parent.wholesalePrice,
       specialPrice: parent.specialPrice,
-      stockQty: data.stockQty ?? 0,
+      stockQty: qty,
       minimumStock: parent.minimumStock,
       trackSerial: false,
     },
   })
+  if (qty > 0) {
+    await setItemStockQty(prisma, variant.id, qty)
+  }
+  return variant
 }

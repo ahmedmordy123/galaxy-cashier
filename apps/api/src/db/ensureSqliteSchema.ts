@@ -3,6 +3,7 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { logger } from '../utils/logger'
+import { repairStockBalanceMismatches } from '../services/stock-ops.service'
 
 function databaseUrl(): string | null {
   const raw = process.env.DATABASE_URL?.replace(/^["']|["']$/g, '')
@@ -267,6 +268,14 @@ export async function ensureSqliteSchema(): Promise<void> {
       }
     } else {
       await applySqlitePatches(prisma)
+    }
+
+    // Item form used to write stockQty without StockBalance; sales deduct balances.
+    if (await hasTable(prisma, 'StockBalance')) {
+      const fixed = await repairStockBalanceMismatches(prisma)
+      if (fixed > 0) {
+        logger.info(`[db] Repaired StockBalance for ${fixed} item(s)`)
+      }
     }
   } finally {
     await prisma.$disconnect()

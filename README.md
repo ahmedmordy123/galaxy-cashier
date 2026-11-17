@@ -1,6 +1,8 @@
-# IMS-Pro — Inventory & Point-of-Sale Management System
+# Galaxy Cashier (IMS-Pro) — Inventory & Point-of-Sale
 
 A full-stack commercial POS and inventory system built for the Iraqi market, supporting dual currency (USD + IQD) and bilingual Arabic/English UI.
+
+**License:** [MIT](LICENSE) — free and open source.
 
 ## Features
 
@@ -37,8 +39,8 @@ A full-stack commercial POS and inventory system built for the Iraqi market, sup
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/ims-pro.git
-cd ims-pro
+git clone https://github.com/ahmedmordy123/galaxy-cashier.git
+cd galaxy-cashier
 
 # 2. Install all dependencies (monorepo root)
 npm install

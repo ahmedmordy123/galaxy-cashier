@@ -44,7 +44,13 @@ function NewItemPageInner() {
     setBarcodeError('')
     setLoading(true)
     try {
-      await itemsService.create({ ...form, categoryId: form.categoryId || null, barcode: form.barcode || null })
+      const name_en = form.name_en.trim() || form.name_ar.trim()
+      await itemsService.create({
+        ...form,
+        name_en,
+        categoryId: form.categoryId || null,
+        barcode: form.barcode || null,
+      })
       if (returnToScan) {
         // Return to items list with scanner auto-opened for next scan
         router.push('/items?scan=1')
@@ -89,8 +95,8 @@ function NewItemPageInner() {
             <input name="name_ar" value={form.name_ar} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الاسم (إنجليزي) *</label>
-            <input name="name_en" value={form.name_en} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الاسم (إنجليزي)</label>
+            <input name="name_en" value={form.name_en} onChange={handleChange} placeholder="اختياري — يُنسخ من العربي إن تُرك فارغاً" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الباركود</label>

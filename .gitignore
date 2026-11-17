@@ -64,6 +64,22 @@ backups/
 apps/desktop/staging/
 apps/desktop/dist/
 apps/desktop/assets/seed.db
+apps/desktop/app.asar
+
+# Client distribution binaries — never commit installers
+Galaxy-Cashier-Distribution-*/
+*.exe
+*.exe.blockmap
+*.asar
+
+# Local debug / QA scratch
+scripts/_tmp-*
+apps/api/_test_dbpath.js
+docs/*.out.txt
+docs/qa-lint-*.txt
+docs/qa-tsc-*.txt
+docs/.qa-runtime-switch-state.json
+/main.js
 
 # Test / debug artifacts
 *.png

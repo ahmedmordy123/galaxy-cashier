@@ -43,6 +43,8 @@ interface InvoiceLine {
   nameEn: string
   barcode: string
   quantity: number
+  /** Snapshot of warehouse stock when the line was added */
+  stockQty: number
   unitPrice: number
   /** Catalog price when line was added (before override) */
   originalUnitPrice: number
@@ -257,6 +259,7 @@ export default function NewSalesInvoicePage() {
             nameEn: line.item.name_en,
             barcode: line.item.barcode || '',
             quantity: qty,
+            stockQty: Number(itemData?.stockQty ?? 0),
             unitPrice,
             originalUnitPrice,
             costPrice,
@@ -422,6 +425,7 @@ export default function NewSalesInvoicePage() {
     const costPrice = hideCost ? 0 : Number(item.costPrice) || 0
 
     setLines((prev) => {
+      const stockQty = Number(item.stockQty) || 0
       if (trackSerial) {
         return [
           ...prev,
@@ -431,6 +435,7 @@ export default function NewSalesInvoicePage() {
             nameEn: item.name_en,
             barcode: item.barcode ?? '',
             quantity: 1,
+            stockQty,
             unitPrice: price,
             originalUnitPrice: price,
             costPrice,
@@ -460,6 +465,7 @@ export default function NewSalesInvoicePage() {
           nameEn: item.name_en,
           barcode: item.barcode ?? '',
           quantity: 1,
+          stockQty,
           unitPrice: price,
           originalUnitPrice: price,
           costPrice,
@@ -657,6 +663,21 @@ export default function NewSalesInvoicePage() {
     return createQuickCustomer(name, newCustomerPhone)
   }
 
+  function validateStockLines(): string | null {
+    const needed = new Map<string, { name: string; qty: number; stock: number }>()
+    for (const l of lines) {
+      const cur = needed.get(l.itemId)
+      if (cur) cur.qty += l.quantity
+      else needed.set(l.itemId, { name: l.nameAr, qty: l.quantity, stock: l.stockQty })
+    }
+    for (const row of needed.values()) {
+      if (row.qty > row.stock) {
+        return `الكمية غير كافية للمنتج: ${row.name} (المطلوب ${row.qty} — المتاح ${row.stock})`
+      }
+    }
+    return null
+  }
+
   async function saveInvoice(
     status: 'draft' | 'park' | 'confirm',
     amountPaid?: number,
@@ -666,6 +687,8 @@ export default function NewSalesInvoicePage() {
     if (status === 'confirm') {
       const serialErr = validateSerialLines()
       if (serialErr) { setSubmitError(serialErr); return }
+      const stockErr = validateStockLines()
+      if (stockErr) { setSubmitError(stockErr); return }
     }
     if (paymentType === 'CREDIT' && !customerId && !customerSearch.trim()) {
       setSubmitError('الفاتورة الآجلة تتطلب تحديد عميل أو تسجيل عميل جديد')
@@ -744,7 +767,8 @@ export default function NewSalesInvoicePage() {
           ...(versionToken ? { updatedAt: versionToken } : {}),
           ...(ack ? { ackTaxPolicyChange: true } : {}),
         })
-        router.push(`/sales/${invoiceId}`)
+        // Print then return to a fresh POS screen
+        router.push(`/sales/${invoiceId}/print?next=${encodeURIComponent('/sales/new')}`)
       }
 
       try {
@@ -789,6 +813,8 @@ export default function NewSalesInvoicePage() {
     if (lines.length === 0) { setSubmitError('أضف صنفاً واحداً على الأقل'); return }
     const serialErr = validateSerialLines()
     if (serialErr) { setSubmitError(serialErr); return }
+    const stockErr = validateStockLines()
+    if (stockErr) { setSubmitError(stockErr); return }
     if (paymentType === 'CREDIT' && !customerId && !customerSearch.trim()) {
       setSubmitError('الفاتورة الآجلة تتطلب تحديد عميل أو تسجيل عميل جديد')
       return

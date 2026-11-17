@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { salesService } from '@/services/sales.service'
 import api from '@/lib/api'
 import { formatMoney } from '@/lib/currency'
@@ -52,10 +52,32 @@ interface Invoice {
 export default function PrintInvoicePage() {
   const params = useParams()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const id = params.id as string
+  const nextPath = searchParams.get('next') || '/sales/new'
+  const returnedRef = useRef(false)
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
+
+  const goNext = useCallback(() => {
+    if (returnedRef.current) return
+    returnedRef.current = true
+    if (window.opener && !window.opener.closed) {
+      try {
+        window.opener.location.href = nextPath
+      } catch { /* cross-origin — ignore */ }
+      window.close()
+      return
+    }
+    router.replace(nextPath)
+  }, [nextPath, router])
+
+  useEffect(() => {
+    const onAfterPrint = () => goNext()
+    window.addEventListener('afterprint', onAfterPrint)
+    return () => window.removeEventListener('afterprint', onAfterPrint)
+  }, [goNext])
 
   useEffect(() => {
     Promise.all([
@@ -103,10 +125,10 @@ export default function PrintInvoicePage() {
         <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           🖨️ طباعة
         </button>
-        <a href={`?paper=58`} className="px-3 py-2 border rounded-lg text-xs bg-white">معاينة 58</a>
-        <a href={`?paper=80`} className="px-3 py-2 border rounded-lg text-xs bg-white">معاينة 80</a>
-        <button onClick={() => window.close()} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
-          إغلاق
+        <a href={`?paper=58&next=${encodeURIComponent(nextPath)}`} className="px-3 py-2 border rounded-lg text-xs bg-white">معاينة 58</a>
+        <a href={`?paper=80&next=${encodeURIComponent(nextPath)}`} className="px-3 py-2 border rounded-lg text-xs bg-white">معاينة 80</a>
+        <button onClick={goNext} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50">
+          فاتورة جديدة
         </button>
       </div>
 
@@ -132,7 +154,7 @@ export default function PrintInvoicePage() {
             <div><span className="text-gray-500">الحالة: </span><span className="font-medium">{STATUS_LABELS[invoice.status] ?? invoice.status}</span></div>
           </div>
           <div className="space-y-1 text-sm text-left">
-            <div><span className="text-gray-500">العميل: </span><span className="font-medium">{invoice.customer?.name ?? 'عميل عابر'}</span></div>
+            <div><span className="text-gray-500">العميل: </span><span className="font-medium">{invoice.customer?.name ?? 'عميل'}</span></div>
             <div><span className="text-gray-500">طريقة الدفع: </span><span>{invoice.type === 'CASH' ? 'نقدي' : 'آجل'}</span></div>
             <div><span className="text-gray-500">المحرر: </span><span>{invoice.createdBy?.name}</span></div>
           </div>

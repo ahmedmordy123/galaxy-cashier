@@ -4,6 +4,7 @@ const { app, BrowserWindow, Menu, shell, dialog, globalShortcut, ipcMain } = req
 const { spawn, execSync } = require('child_process')
 const path = require('path')
 const http = require('http')
+const net = require('net')
 const fs = require('fs')
 const os = require('os')
 const crypto = require('crypto')
@@ -397,28 +398,68 @@ function isPidAlive(pid) {
   }
 }
 
-let machineLockFd = null
-let machineLockFile = null
+/** Named pipe — OS releases the listen on process crash/kill -9 (not a leftover file). */
+const MACHINE_LOCK_PIPE = '\\\\.\\pipe\\GalaxyCashier_MachineInstance_v110'
+let machineLockServer = null
+
+function machineOwnerMetaPath() {
+  return path.join(programDataLiveDataDir(), '.machine-instance.owner.json')
+}
+
+function formatOwnerUser(owner) {
+  if (!owner) return 'غير معروف'
+  const user = String(owner.user || owner.username || '').trim()
+  const domain = String(owner.domain || '').trim()
+  if (user && domain) return `${domain}\\${user}`
+  if (user) return user
+  return 'غير معروف'
+}
+
+function writeMachineOwnerMeta() {
+  const owner = {
+    pid: process.pid,
+    user: process.env.USERNAME || process.env.USER || '',
+    domain: process.env.USERDOMAIN || '',
+    at: new Date().toISOString(),
+  }
+  try {
+    fs.mkdirSync(programDataLiveDataDir(), { recursive: true })
+    fs.writeFileSync(machineOwnerMetaPath(), JSON.stringify(owner, null, 2), 'utf8')
+  } catch (e) {
+    try {
+      log(`[app] owner meta write failed: ${e.message}`)
+    } catch {
+      /* logger may not be ready */
+    }
+  }
+  return owner
+}
+
+function readMachineOwnerMeta() {
+  try {
+    return JSON.parse(fs.readFileSync(machineOwnerMetaPath(), 'utf8'))
+  } catch {
+    return null
+  }
+}
 
 function releaseMachineInstanceLock() {
-  if (machineLockFd != null) {
+  if (machineLockServer) {
     try {
-      fs.closeSync(machineLockFd)
+      machineLockServer.close()
     } catch {
       /* */
     }
-    machineLockFd = null
+    machineLockServer = null
   }
-  if (machineLockFile) {
-    try {
-      fs.unlinkSync(machineLockFile)
-    } catch {
-      /* */
-    }
-    machineLockFile = null
+  try {
+    fs.unlinkSync(machineOwnerMetaPath())
+  } catch {
+    /* */
   }
-  // Legacy dir locks from earlier builds
+  // Legacy file/dir locks from earlier builds
   for (const legacy of [
+    path.join(programDataLiveDataDir(), '.machine-instance.lock'),
     path.join(programDataLiveDataDir(), '.instance-lock'),
     path.join(programDataGalaxyRoot(), '.instance-lock'),
   ]) {
@@ -430,59 +471,64 @@ function releaseMachineInstanceLock() {
   }
 }
 
+/**
+ * Acquire machine-wide lock via named pipe listen (auto-frees on kill -9).
+ * Owner sidecar is for UI only (username in the denial message).
+ */
 function acquireMachineInstanceLock() {
   if (isPortableBuild()) {
-    return { ok: true, skipped: 'portable' }
+    return Promise.resolve({ ok: true, skipped: 'portable' })
   }
-  const dataDir = programDataLiveDataDir()
   try {
-    fs.mkdirSync(dataDir, { recursive: true })
+    fs.mkdirSync(programDataLiveDataDir(), { recursive: true })
   } catch (e) {
-    return { ok: false, error: `mkdir data: ${e.message}` }
+    return Promise.resolve({ ok: false, error: `mkdir data: ${e.message}` })
   }
-  const lockFile = path.join(dataDir, '.machine-instance.lock')
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      const fd = fs.openSync(lockFile, 'wx') // exclusive create — fails if exists
-      const owner = {
-        pid: process.pid,
-        user: process.env.USERNAME || process.env.USER || '',
-        at: new Date().toISOString(),
-        lockFile,
-      }
-      fs.writeFileSync(fd, JSON.stringify(owner, null, 2), 'utf8')
-      machineLockFd = fd
-      machineLockFile = lockFile
-      return { ok: true, owner }
-    } catch (e) {
-      if (!e || e.code !== 'EEXIST') {
-        return { ok: false, error: e.message || String(e) }
-      }
-      let meta = null
+  return new Promise((resolve) => {
+    const server = net.createServer(() => {
+      /* lock is the listen itself — ignore inbound */
+    })
+
+    const finish = (result) => {
       try {
-        meta = JSON.parse(fs.readFileSync(lockFile, 'utf8'))
+        server.removeAllListeners('error')
       } catch {
-        meta = null
+        /* */
       }
-      if (meta && meta.pid === process.pid) {
-        return { ok: true, owner: meta, reentrant: true }
-      }
-      if (meta && isPidAlive(meta.pid)) {
-        return { ok: false, owner: meta }
-      }
-      try {
-        fs.unlinkSync(lockFile)
-      } catch (rmErr) {
-        return {
-          ok: false,
-          owner: meta,
-          error: `stale lock unlink failed: ${rmErr.message}`,
-        }
-      }
+      resolve(result)
     }
-  }
-  return { ok: false, error: 'could not acquire machine instance lock' }
+
+    server.once('error', (err) => {
+      const meta = readMachineOwnerMeta() || {}
+      // Sidecar can lag after a crash; if PID is dead the pipe should already be free —
+      // report username from meta anyway for the denial dialog.
+      finish({
+        ok: false,
+        owner: {
+          user: meta.user || meta.username || '',
+          domain: meta.domain || '',
+          pid: meta.pid || null,
+          at: meta.at || null,
+        },
+        error: err.code || err.message,
+      })
+    })
+
+    try {
+      server.listen(MACHINE_LOCK_PIPE, () => {
+        machineLockServer = server
+        const owner = writeMachineOwnerMeta()
+        finish({ ok: true, owner })
+      })
+    } catch (e) {
+      finish({
+        ok: false,
+        error: e.message || String(e),
+        owner: readMachineOwnerMeta() || {},
+      })
+    }
+  })
 }
 
 function initDatabase(res) {
@@ -1129,21 +1175,22 @@ if (gotLock) {
     log(`[app] launch route: ${pendingRoute}`)
 
     // Machine-wide lock for Setup/ProgramData (blocks two Windows accounts on same DB).
-    const machineLockResult = acquireMachineInstanceLock()
+    // Named pipe auto-releases on kill -9 / crash — no manual unlock.
+    const machineLockResult = await acquireMachineInstanceLock()
     if (!machineLockResult.ok) {
       const owner = machineLockResult.owner || {}
+      const userLabel = formatOwnerUser(owner)
       log(
         `[app] machine-instance-lock denied: ${JSON.stringify({
           owner,
+          userLabel,
           error: machineLockResult.error || null,
         })}`,
       )
       const detail =
-        `Galaxy Cashier يعمل بالفعل على هذا الجهاز` +
-        (owner.user ? ` (المستخدم: ${owner.user}` : '') +
-        (owner.pid ? `, PID ${owner.pid}` : '') +
-        (owner.user || owner.pid ? ')' : '') +
-        `.\n\nلا يمكن فتح نسختين على نفس قاعدة ProgramData في نفس الوقت.`
+        `Galaxy Cashier يعمل بالفعل على هذا الجهاز (المستخدم: ${userLabel}` +
+        (owner.pid ? `، PID ${owner.pid}` : '') +
+        `).\n\nلا يمكن فتح نسختين على نفس قاعدة ProgramData في نفس الوقت.`
       const headless =
         process.env.CASR_SMOKE === '1' ||
         process.env.CI === 'true' ||
@@ -1161,7 +1208,9 @@ if (gotLock) {
     if (machineLockResult.skipped) {
       log(`[app] machine-instance-lock skipped: ${machineLockResult.skipped}`)
     } else {
-      log(`[app] machine-instance-lock acquired pid=${process.pid}`)
+      log(
+        `[app] machine-instance-lock acquired pid=${process.pid} user=${formatOwnerUser(machineLockResult.owner)}`,
+      )
     }
 
     createSplash()

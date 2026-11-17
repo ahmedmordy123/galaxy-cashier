@@ -35,6 +35,46 @@ export async function syncItemStockQty(tx: Tx, itemId: string) {
   return total
 }
 
+/** Set default-warehouse balance so warehouse totals match the desired item qty. */
+export async function setItemStockQty(
+  tx: Tx,
+  itemId: string,
+  desiredQty: number,
+) {
+  const wh = await ensureDefaultWarehouse(tx)
+  await getOrCreateBalance(tx, itemId, wh.id)
+  const others = await tx.stockBalance.findMany({
+    where: { itemId, warehouseId: { not: wh.id } },
+  })
+  const otherSum = others.reduce((s, r) => s + Number(r.qty), 0)
+  const mainQty = Math.max(0, Number(desiredQty) - otherSum)
+  await tx.stockBalance.update({
+    where: { itemId_warehouseId: { itemId, warehouseId: wh.id } },
+    data: { qty: mainQty },
+  })
+  return syncItemStockQty(tx, itemId)
+}
+
+/**
+ * Repair items where Item.stockQty (UI) does not match Σ StockBalance
+ * (sale path). Trusts Item.stockQty as the intended quantity.
+ */
+export async function repairStockBalanceMismatches(tx: Tx) {
+  const items = await tx.item.findMany({
+    where: { isActive: true },
+    include: { balances: true },
+  })
+  let fixed = 0
+  for (const item of items) {
+    const sum = item.balances.reduce((s, b) => s + Number(b.qty), 0)
+    const want = Number(item.stockQty)
+    if (sum === want) continue
+    await setItemStockQty(tx, item.id, want)
+    fixed++
+  }
+  return fixed
+}
+
 export function weightedAverageCost(
   oldQty: number,
   oldCost: number,
@@ -114,7 +154,8 @@ export async function stockOut(
   const item = await tx.item.findUnique({ where: { id: opts.itemId } })
   if (!item) throw new Error(`ITEM_NOT_FOUND:${opts.itemId}`)
 
-  await getOrCreateBalance(tx, opts.itemId, opts.warehouseId)
+  const balance = await getOrCreateBalance(tx, opts.itemId, opts.warehouseId)
+  const available = Number(balance.qty)
 
   const decremented = await tx.stockBalance.updateMany({
     where: {
@@ -125,7 +166,9 @@ export async function stockOut(
     data: { qty: { decrement: opts.qty } },
   })
   if (decremented.count === 0) {
-    throw new Error(`INSUFFICIENT_STOCK:${item.name_ar}:${item.name_en}`)
+    throw new Error(
+      `INSUFFICIENT_STOCK:${item.name_ar}:${available}:${opts.qty}`,
+    )
   }
 
   await syncItemStockQty(tx, opts.itemId)

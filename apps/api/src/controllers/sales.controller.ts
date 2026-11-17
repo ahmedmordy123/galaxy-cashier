@@ -193,7 +193,16 @@ export async function confirmInvoiceHandler(req: Request, res: Response) {
     if (msg.startsWith('INSUFFICIENT_STOCK:')) {
       const parts = msg.split(':')
       const itemName = parts[1] || 'المنتج'
-      return res.status(400).json({ success: false, error: `الكمية غير كافية للمنتج: ${itemName}` })
+      const available = parts[2]
+      const requested = parts[3]
+      const detail =
+        available != null && requested != null
+          ? ` (المطلوب ${requested} — المتاح ${available})`
+          : ''
+      return res.status(400).json({
+        success: false,
+        error: `الكمية غير كافية للمنتج: ${itemName}${detail}`,
+      })
     }
     if (msg.startsWith('SERIAL_REQUIRED:')) {
       return res.status(400).json({ success: false, error: `مطلوب سيريال للصنف: ${msg.split(':')[1]}` })

@@ -289,6 +289,72 @@ function ItemsPageInner() {
     URL.revokeObjectURL(url)
   }
 
+  function csvCell(v: unknown): string {
+    const s = v == null ? '' : String(v)
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+    return s
+  }
+
+  const [exportLoading, setExportLoading] = useState(false)
+
+  async function exportItemsCsv() {
+    setExportLoading(true)
+    try {
+      const pageSize = 200
+      let page = 1
+      let totalPages = 1
+      const all: Array<{
+        name_ar: string
+        name_en: string
+        barcode: string | null
+        unit: string
+        costPrice: number
+        retailPrice: number
+        wholesalePrice?: number
+        specialPrice?: number
+        stockQty: number
+        minimumStock: number
+      }> = []
+      while (page <= totalPages) {
+        const params: Record<string, string | number | boolean> = { page, pageSize }
+        if (search.trim()) params.search = search.trim()
+        const data = await itemsService.getAll(params)
+        all.push(...(data.items || []))
+        totalPages = Math.max(1, Number(data.totalPages) || 1)
+        page++
+        if (page > 200) break
+      }
+      const header = 'name_ar,name_en,barcode,unit,costPrice,retailPrice,wholesalePrice,specialPrice,stockQty,minimumStock'
+      const rows = all.map((i) =>
+        [
+          csvCell(i.name_ar),
+          csvCell(i.name_en),
+          csvCell(i.barcode ?? ''),
+          csvCell(i.unit),
+          csvCell(Number(i.costPrice) || 0),
+          csvCell(Number(i.retailPrice) || 0),
+          csvCell(Number(i.wholesalePrice) || 0),
+          csvCell(Number(i.specialPrice) || 0),
+          csvCell(Number(i.stockQty) || 0),
+          csvCell(Number(i.minimumStock) || 0),
+        ].join(',')
+      )
+      const blob = new Blob(['﻿' + header + '\n' + rows.join('\n')], {
+        type: 'text/csv;charset=utf-8;',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `items-export-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('فشل تصدير الأصناف')
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (importRef.current) importRef.current.value = ''
@@ -329,7 +395,15 @@ function ItemsPageInner() {
     <div dir="rtl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">الأصناف</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <button
+            onClick={exportItemsCsv}
+            disabled={exportLoading}
+            className="px-4 py-2 border border-emerald-600 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-50 transition-colors text-sm font-medium"
+            title="تصدير بنفس أعمدة الاستيراد"
+          >
+            {exportLoading ? 'جار التصدير...' : '📥 تصدير Excel/CSV'}
+          </button>
           {canMutateItems && (
             <>
               <button

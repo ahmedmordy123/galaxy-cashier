@@ -39,8 +39,8 @@ export async function createTransfer(req: Request, res: Response) {
     const transfer = await createStockTransfer(result.data, req.user!.id)
     res.status(201).json({ success: true, data: transfer })
   } catch (err) {
-    if (err instanceof Error && err.message === 'INSUFFICIENT_STOCK') {
-      return res.status(400).json({ success: false, error: 'INSUFFICIENT_STOCK' })
+    if (err instanceof Error && err.message.startsWith('INSUFFICIENT_STOCK')) {
+      return res.status(400).json({ success: false, error: 'الكمية غير كافية في المخزن' })
     }
     if (err instanceof Error && err.message === 'ITEM_NOT_FOUND') {
       return res.status(404).json({ success: false, error: 'Item not found' })
